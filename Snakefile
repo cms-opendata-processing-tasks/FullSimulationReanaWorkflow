@@ -1,5 +1,5 @@
-totalEvents=10
-eventsPerJob=1
+totalEvents=100
+eventsPerJob=10
 
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
@@ -38,7 +38,7 @@ rule gen:
         cp $WORKDIR/{input.frag} Configuration/GenProduction/python/
 
         echo "Reached scramming"
-        scram b # command used to build and compile code for the CMS Software (CMSSW) environment
+        scram b 
 
         eval `scramv1 runtime -sh`
 
@@ -48,7 +48,6 @@ rule gen:
         cmsDriver.py Configuration/GenProduction/python/TOP-RunIISummer20UL16wmLHEGEN-00119.py \\
         --python_filename gen_cfg_{wildcards.jobIndex}.py \\
         --eventcontent RAWSIM \\
-        --customise Configuration/DataProcessing/Utils.addMonitoring \\
         --datatier GEN \\
         --fileout file:gen_output.root \\
         --conditions 106X_mcRun2_asymptotic_v13 \\
@@ -68,11 +67,13 @@ rule gen:
         ls -lh 
 
         if ! ls *.root 1> /dev/null 2>&1; then
-            echo "[ERROR] cmsRun exited, but no .root file was created!"
+            echo "[ERROR] cmsRun exited, but no .root file was created"
             echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
             cat cmsRun.log
             exit 1
         fi
+
+        cp cmsRun.log $WORKDIR/gen_{wildcards.jobIndex}.log
 
         mv *.root $WORKDIR/{output}
 
