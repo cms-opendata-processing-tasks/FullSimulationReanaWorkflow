@@ -1,5 +1,5 @@
-totalEvents=10_000
-eventsPerJob=1000
+totalEvents=10
+eventsPerJob=1
 
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
@@ -74,7 +74,7 @@ rule gen:
             exit 1
         fi
 
-        mv *.root $WORK_DIR/{output}
+        mv *.root $WORKDIR/{output}
 
         sync
         sleep 5
