@@ -1,0 +1,4 @@
+.apptainer_cache
+.apptainer_tmp
+.snakemake
+

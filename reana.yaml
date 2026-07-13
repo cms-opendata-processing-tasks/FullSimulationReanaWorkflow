@@ -1,0 +1,12 @@
+version: 0.9.4
+inputs:
+  files:
+    - Snakefile
+    - reana.yaml
+    - Configuration/GenProduction/python/SMP-RunIISummer20UL16GEN-00010-fragment.py
+workflow:
+  type: snakemake
+  file: Snakefile
+  resources:
+    cvmfs:
+      - cms.cern.ch
