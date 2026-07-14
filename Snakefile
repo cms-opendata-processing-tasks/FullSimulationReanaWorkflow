@@ -1,8 +1,13 @@
-totalEvents=100
-eventsPerJob=10
+import glob
 
+totalEvents=10
+eventsPerJob=1
+fragmentPath=glob.glob("Configuration/GenProduction/python/*.py")[0]
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
+
+with open("cmsDriver_command.txt", "r") as f:
+    cmsDriverCMD = f.read().strip()
 
 rule all:
     input:
@@ -10,7 +15,7 @@ rule all:
 
 rule gen:
     input:
-        frag="Configuration/GenProduction/python/TOP-RunIISummer20UL16wmLHEGEN-00119.py"
+        frag=fragmentPath
     output:
         "results/gen_{jobIndex}.root"
     params:
@@ -44,23 +49,15 @@ rule gen:
 
         mkdir -p $WORKDIR/results
 
-        echo "Running cmsDriver"
-        cmsDriver.py Configuration/GenProduction/python/TOP-RunIISummer20UL16wmLHEGEN-00119.py \\
-        --python_filename gen_cfg_{wildcards.jobIndex}.py \\
-        --eventcontent RAWSIM \\
-        --datatier GEN \\
-        --fileout file:gen_output.root \\
-        --conditions 106X_mcRun2_asymptotic_v13 \\
-        --beamspot Realistic25ns13TeV2016Collision \\
-        --customise_commands process.source.numberEventsInLuminosityBlock="cms.untracked.uint32(100)" \\
-        --step LHE,GEN \\
-        --geometry DB:Extended \\
-        --era Run2_2016 \\
-        --no_exec \\
-        --mc \\
-        -n {params.events}
+        export EVENTS={params.events}
+        export JOB_INDEX={wildcards.jobIndex}
 
+        echo "Running cmsDriver"
+        {cmsDriverCMD}
+        
+        ls -lh
         echo "Running cmsRun"
+
         cmsRun gen_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
         echo "Listing directories, to better understand what it looks like:"
@@ -75,7 +72,8 @@ rule gen:
 
         cp cmsRun.log $WORKDIR/gen_{wildcards.jobIndex}.log
 
-        mv *.root $WORKDIR/{output}
+
+        mv gen_output.root $WORKDIR/{output}
 
         sync
         sleep 5

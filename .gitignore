@@ -2,3 +2,6 @@
 .apptainer_tmp
 .snakemake
 
+ADPS.lhe
+cmsDriver_command.txt
+Configuration/

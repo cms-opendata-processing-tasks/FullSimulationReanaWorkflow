@@ -1,12 +1,12 @@
-version: 0.9.4
 inputs:
   files:
-    - Snakefile
-    - reana.yaml
-    - Configuration/GenProduction/python/SMP-RunIISummer20UL16GEN-00010-fragment.py
+  - Snakefile
+  - cmsDriver_command.txt
+  - Configuration/GenProduction/python/SMP-RunIISummer20UL16GEN-00010-fragment.py
+version: 0.9.4
 workflow:
-  type: snakemake
   file: Snakefile
   resources:
     cvmfs:
-      - cms.cern.ch
+    - cms.cern.ch
+  type: snakemake
