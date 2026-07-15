@@ -1,10 +1,10 @@
 inputs:
   files:
-  - Snakefile
-  - parse_metadata.py
+  - workflow/Snakefile
+  - workflow/scripts/parse_metadata.py
 version: 0.9.4
 workflow:
-  file: Snakefile
+  file: workflow/Snakefile
   resources:
     cvmfs:
     - cms.cern.ch

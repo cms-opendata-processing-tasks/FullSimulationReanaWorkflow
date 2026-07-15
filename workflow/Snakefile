@@ -30,7 +30,7 @@ rule parse_metadata:
     shell:
         """
             set -e
-            python3 parse_metadata.py {input.metadata} {output.cmd_file} 
+            python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} 
         """
 
 rule gen:
