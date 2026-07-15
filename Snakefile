@@ -1,21 +1,41 @@
-import glob
+RECORD_ID = 72677 #35755
 
 totalEvents=10
 eventsPerJob=1
-fragmentPath=glob.glob("Configuration/GenProduction/python/*.py")[0]
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
-
-with open("cmsDriver_command.txt", "r") as f:
-    cmsDriverCMD = f.read().strip()
 
 rule all:
     input:
         expand("results/gen_{jobIndex}.root", jobIndex=jobIndex)
 
+
+rule fetch_metadata:
+    output:
+        metadata="record_metadata.json"
+    container:
+        "docker://cernopendata/cernopendata-client:latest"
+    shell:
+        """
+            cernopendata-client get-metadata --recid {RECORD_ID} > record_metadata.json
+        """
+
+rule parse_metadata:
+    input:
+        metadata="record_metadata.json"
+    output:
+        cmd_file="cmsDriver_command.txt"    
+    container:
+        "docker://cernopendata/cernopendata-client:latest"
+    shell:
+        """
+            set -e
+            python3 parse_metadata.py {input.metadata} {output.cmd_file} 
+        """
+
 rule gen:
     input:
-        frag=fragmentPath
+        cmd_file="cmsDriver_command.txt"
     output:
         "results/gen_{jobIndex}.root"
     params:
@@ -39,8 +59,11 @@ rule gen:
 
         cd CMSSW_10_6_30/src/
 
+        echo "Checking WORKDIR"
+        ls -lh $WORKDIR/
+
         mkdir -p Configuration/GenProduction/python/
-        cp $WORKDIR/{input.frag} Configuration/GenProduction/python/
+        cp $WORKDIR/Configuration/GenProduction/python/*.py Configuration/GenProduction/python/
 
         echo "Reached scramming"
         scram b 
@@ -53,9 +76,13 @@ rule gen:
         export JOB_INDEX={wildcards.jobIndex}
 
         echo "Running cmsDriver"
-        {cmsDriverCMD}
+        ls -lh Configuration/GenProduction/python/
         
+        eval "$(cat $WORKDIR/{input.cmd_file})"
+        
+        echo "Directory after cmsDriver:"
         ls -lh
+
         echo "Running cmsRun"
 
         cmsRun gen_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true

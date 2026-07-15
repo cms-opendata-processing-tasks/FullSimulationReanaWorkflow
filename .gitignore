@@ -5,3 +5,5 @@
 ADPS.lhe
 cmsDriver_command.txt
 Configuration/
+test.py
+record_metadata.json

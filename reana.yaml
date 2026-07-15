@@ -1,8 +1,7 @@
 inputs:
   files:
   - Snakefile
-  - cmsDriver_command.txt
-  - Configuration/GenProduction/python/SMP-RunIISummer20UL16GEN-00010-fragment.py
+  - parse_metadata.py
 version: 0.9.4
 workflow:
   file: Snakefile
