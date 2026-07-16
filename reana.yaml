@@ -4,6 +4,7 @@ inputs:
     - Snakefile
     - reana.yaml
     - Configuration/GenProduction/python/SMP-RunIISummer20UL16GEN-00010-fragment.py
+    - Configuration/GenProduction/python/TOP-RunIISummer20UL16wmLHEGEN-00119.py
 workflow:
   type: snakemake
   file: Snakefile

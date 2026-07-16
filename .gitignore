@@ -1,4 +1,5 @@
 .apptainer_cache
 .apptainer_tmp
 .snakemake
-
+reana-env.sh
+results

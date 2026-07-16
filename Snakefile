@@ -1,17 +1,19 @@
-totalEvents=1000
-eventsPerJob=10
+totalEvents=10
+eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents / eventsPerJob) + 1))
 
 rule all:
     input:
-        expand("results/sim_{jobIndex}.root", jobIndex=jobIndex)
+        expand("results/digi2raw_{jobIndex}.root", jobIndex=jobIndex)
 
 rule gen:
     input:
-        frag="Configuration/GenProduction/python/SMP-RunIISummer20UL16GEN-00010-fragment.py"
+        frag="Configuration/GenProduction/python/TOP-RunIISummer20UL16wmLHEGEN-00119.py"
     output:
         "results/gen_{jobIndex}.root"
+    params:
+        events=eventsPerJob
     container:
         "docker://cmssw/cc7:latest"
     shell:
@@ -35,27 +37,27 @@ rule gen:
         cp $WORKDIR/{input.frag} Configuration/GenProduction/python/
 
         echo "Reached scramming"
-        scram b # command used to build and compile code for the CMS Software (CMSSW) environment
+        scram b 
 
         eval `scramv1 runtime -sh`
 
         mkdir -p $WORKDIR/results
 
         echo "Running cmsDriver"
-        cmsDriver.py Configuration/GenProduction/python/SMP-RunIISummer20UL16GEN-00010-fragment.py \\
+        cmsDriver.py Configuration/GenProduction/python/TOP-RunIISummer20UL16wmLHEGEN-00119.py \\
         --python_filename gen_cfg_{wildcards.jobIndex}.py \\
         --eventcontent RAWSIM \\
         --datatier GEN \\
-        --fileout file:$WORKDIR/{output} \\
+        --fileout file:gen_output.root \\
         --conditions 106X_mcRun2_asymptotic_v13 \\
         --beamspot Realistic25ns13TeV2016Collision \\
         --customise_commands process.source.numberEventsInLuminosityBlock="cms.untracked.uint32(100)" \\
-        --step GEN \\
+        --step LHE,GEN \\
         --geometry DB:Extended \\
         --era Run2_2016 \\
         --no_exec \\
         --mc \\
-        -n {eventsPerJob}
+        -n {params.events}
 
         echo "Running cmsRun"
         cmsRun gen_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
@@ -64,19 +66,21 @@ rule gen:
         ls -lh 
 
         if ! ls *.root 1> /dev/null 2>&1; then
-            echo "[ERROR] cmsRun exited, but no .root file was created!"
+            echo "[ERROR] cmsRun exited, but no .root file was created"
             echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
             cat cmsRun.log
             exit 1
         fi
 
-        mv *.root $WORK_DIR/{output}
+        cp cmsRun.log $WORKDIR/gen_{wildcards.jobIndex}.log
+
+        mv gen_output.root $WORKDIR/{output}
 
         sync
         sleep 5
 
         rm -rf $JOB_DIR
-        """   
+        """
 
 rule sim:
     input:
@@ -85,6 +89,8 @@ rule sim:
         "results/sim_{jobIndex}.root"
     container:
         "docker://cmssw/cc7:latest"
+    params:
+        events=eventsPerJob
     shell:
         """
         set -e
@@ -111,7 +117,7 @@ rule sim:
         cmsDriver.py --python_filename sim_cfg_{wildcards.jobIndex}.py \\
         --eventcontent RAWSIM \\
         --datatier GEN-SIM \\
-        --fileout file:$WORKDIR/{output} \\
+        --fileout file:sim_output.root \\
         --conditions 106X_mcRun2_asymptotic_v13 \\
         --beamspot Realistic25ns13TeV2016Collision \\
         --step SIM \\
@@ -121,10 +127,10 @@ rule sim:
         --runUnscheduled \\
         --no_exec \\
         --mc \\
-        -n {eventsPerJob}
+        -n {params.events}
 
         echo "Running cmsRun"
-        cmsRun gen_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+        cmsRun sim_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
@@ -136,7 +142,9 @@ rule sim:
             exit 1
         fi
 
-        mv *.root $WORK_DIR/{output}
+        cp cmsRun.log $WORKDIR/sim_{wildcards.jobIndex}.log
+
+        mv sim_output.root $WORKDIR/{output}
 
         sync
         sleep 5
@@ -144,3 +152,92 @@ rule sim:
         rm -rf $JOB_DIR
         """
 
+rule predigi2raw:
+    output:
+        "results/pileup_file.txt"
+    container:
+        "docker://cernopendata/cernopendata-client:latest"
+    shell:
+        """
+        mkdir -p results
+        cernopendata-client get-file-locations --recid 30595 --protocol xrootd > {output}
+        """
+
+rule digi2raw:
+    input:
+        sim="results/sim_{jobIndex}.root",
+        pileup="results/pileup_file.txt"
+    output:
+        "results/digi2raw_{jobIndex}.root"
+    container:
+        "docker://cmssw/cc7:latest"
+    params:
+        events=eventsPerJob
+    shell:
+        """
+        set -e
+        export WORKDIR=$(pwd)
+
+        JOB_DIR=$(mktemp -d)
+        cd $JOB_DIR
+
+        echo "Sourcing CMS environment"
+        export SCRAM_ARCH=slc7_amd64_gcc700
+
+        source /cvmfs/cms.cern.ch/cmsset_default.sh
+
+        scram p CMSSW CMSSW_10_6_30
+
+        cd CMSSW_10_6_30/src/
+
+        scram b
+        eval `scramv1 runtime -sh`
+
+        PILEUP_URL=$(sed -n '{wildcards.jobIndex}p' $WORKDIR/{input.pileup})
+
+        echo "Running DIGI2RAW workflow"
+
+        echo "Running cmsDriver for DIGI2RAW"
+        cmsDriver.py --python_filename digi2raw_cfg_{wildcards.jobIndex}.py \\
+        --eventcontent PREMIXRAW  \\
+        --datatier GEN-SIM-DIGI \\
+        --fileout file:digi2raw_output.root \\
+        --pileup_input "$PILEUP_URL" \\
+        --conditions 106X_mcRun2_asymptotic_v13 \\
+        --step DIGI,DATAMIX,L1,DIGI2RAW \\
+        --procModifiers premix_stage2 \\
+        --geometry DB:Extended \\
+        --filein file:$WORKDIR/{input.sim} \\
+        --datamix PreMix \\
+        --era Run2_2016 \\
+        --runUnscheduled \\
+        --no_exec \\
+        --mc \\
+        -n {params.events}
+
+        echo "Running cmsRun"
+        cmsRun digi2raw_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+
+        echo "Listing directories, to better understand what it looks like:"
+        ls -lh 
+
+        if ! ls *.root 1> /dev/null 2>&1; then
+            echo "[ERROR] cmsRun exited, but no .root file was created!"
+            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
+            cat cmsRun.log
+            exit 1
+        fi
+
+        cp cmsRun.log $WORKDIR/digi2raw_{wildcards.jobIndex}.log
+
+        mv digi2raw_output.root $WORKDIR/{output}
+
+        sync
+        sleep 5
+
+        rm -rf $JOB_DIR
+        """
+
+    
+
+        
