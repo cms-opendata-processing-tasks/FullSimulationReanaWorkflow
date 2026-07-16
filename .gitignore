@@ -1,7 +1,8 @@
 .apptainer_cache
 .apptainer_tmp
 .snakemake
-
+reana-env.sh
+results
 ADPS.lhe
 cmsDriver_command.txt
 Configuration/
