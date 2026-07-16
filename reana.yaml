@@ -1,13 +1,11 @@
-version: 0.9.4
 inputs:
   files:
-    - Snakefile
-    - reana.yaml
-    - Configuration/GenProduction/python/SMP-RunIISummer20UL16GEN-00010-fragment.py
-    - Configuration/GenProduction/python/TOP-RunIISummer20UL16wmLHEGEN-00119.py
+  - workflow/Snakefile
+  - workflow/scripts/parse_metadata.py
+version: 0.9.4
 workflow:
-  type: snakemake
-  file: Snakefile
+  file: workflow/Snakefile
   resources:
     cvmfs:
-      - cms.cern.ch
+    - cms.cern.ch
+  type: snakemake

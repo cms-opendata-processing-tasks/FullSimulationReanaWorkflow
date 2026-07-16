@@ -3,3 +3,8 @@
 .snakemake
 reana-env.sh
 results
+ADPS.lhe
+cmsDriver_command.txt
+Configuration/
+test.py
+record_metadata.json
