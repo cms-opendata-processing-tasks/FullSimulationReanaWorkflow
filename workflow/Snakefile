@@ -1,6 +1,6 @@
 RECORD_ID = 35755 #72677 
 
-totalEvents=5
+totalEvents=3
 eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
@@ -17,15 +17,15 @@ rule fetch_metadata:
         "docker://cernopendata/cernopendata-client:latest"
     shell:
         """
-            cernopendata-client get-metadata --recid {RECORD_ID} > {output.metadata}
+        cernopendata-client get-metadata --recid {RECORD_ID} > {output.metadata}
         """
 
 rule parse_gen_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        cmd_file="cmsDriver_gen.txt",
-        pileup_record="pileup_record_id.txt"
+        "pileup_record_id.txt",
+        cmd_file="cmsDriver_gen.txt"
     params:
         get_curl=True,
         step="gen"
@@ -33,8 +33,8 @@ rule parse_gen_metadata:
         "docker://cernopendata/cernopendata-client:latest"
     shell:
         """
-            set -e
-            python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        set -e
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
         """
 
 rule gen:
@@ -123,8 +123,8 @@ rule parse_sim_metadata:
         "docker://cernopendata/cernopendata-client:latest"
     shell:
         """
-            set -e
-            python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        set -e
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
         """
 
 rule sim:
@@ -198,15 +198,31 @@ rule predigi2raw:
         "docker://cernopendata/cernopendata-client:latest"
     shell:
         """
-        pileup_recid="$(cat {input.record_id})"
-        mkdir -p results
-        cernopendata-client get-file-locations --recid $pileup_recid --protocol xrootd > {output}
+            pileup_recid="$(cat {input.record_id})"
+            mkdir -p results
+            cernopendata-client get-file-locations --recid $pileup_recid --protocol xrootd > {output}
+        """
+
+rule parse_digi2raw_metadata:
+    input:
+        metadata="record_metadata.json"
+    output:
+        cmd_file="cmsDriver_digi2raw.txt"
+    params:
+        step="digi2raw",
+        get_curl=False
+    container:
+        "docker://cernopendata/cernopendata-client:latest"
+    shell:
+        """
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
         """
 
 rule digi2raw:
     input:
         sim="results/sim_{jobIndex}.root",
-        pileup="results/pileup_file.txt"
+        pileup="results/pileup_file.txt",
+        cmd_file="cmsDriver_digi2raw.txt"
     output:
         "results/digi2raw_{jobIndex}.root"
     container:
@@ -237,23 +253,12 @@ rule digi2raw:
 
         echo "Running DIGI2RAW workflow"
 
+        export INPUT_FILE=$WORKDIR/{input.sim}
+        export JOB_INDEX={wildcards.jobIndex}
+        export EVENTS={params.events} 
+
         echo "Running cmsDriver for DIGI2RAW"
-        cmsDriver.py --python_filename digi2raw_cfg_{wildcards.jobIndex}.py \\
-        --eventcontent PREMIXRAW  \\
-        --datatier GEN-SIM-DIGI \\
-        --fileout file:digi2raw_output.root \\
-        --pileup_input "$PILEUP_URL" \\
-        --conditions 106X_mcRun2_asymptotic_v13 \\
-        --step DIGI,DATAMIX,L1,DIGI2RAW \\
-        --procModifiers premix_stage2 \\
-        --geometry DB:Extended \\
-        --filein file:$WORKDIR/{input.sim} \\
-        --datamix PreMix \\
-        --era Run2_2016 \\
-        --runUnscheduled \\
-        --no_exec \\
-        --mc \\
-        -n {params.events}
+        eval "$(cat $WORKDIR/{input.cmd_file})"
 
         echo "Running cmsRun"
         cmsRun digi2raw_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
@@ -277,7 +282,3 @@ rule digi2raw:
 
         rm -rf $JOB_DIR
         """
-
-    
-
-        
