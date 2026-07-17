@@ -1,6 +1,6 @@
-RECORD_ID = 72677 #35755
+RECORD_ID = 35755 #72677 
 
-totalEvents=10
+totalEvents=5
 eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
@@ -17,25 +17,29 @@ rule fetch_metadata:
         "docker://cernopendata/cernopendata-client:latest"
     shell:
         """
-            cernopendata-client get-metadata --recid {RECORD_ID} > record_metadata.json
+            cernopendata-client get-metadata --recid {RECORD_ID} > {output.metadata}
         """
 
-rule parse_metadata:
+rule parse_gen_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        cmd_file="cmsDriver_command.txt"    
+        cmd_file="cmsDriver_gen.txt",
+        pileup_record="pileup_record_id.txt"
+    params:
+        get_curl=True,
+        step="gen"
     container:
         "docker://cernopendata/cernopendata-client:latest"
     shell:
         """
             set -e
-            python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} 
+            python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
         """
 
 rule gen:
     input:
-        cmd_file="cmsDriver_command.txt"
+        cmd_file="cmsDriver_gen.txt"
     output:
         "results/gen_{jobIndex}.root"
     params:
@@ -107,9 +111,26 @@ rule gen:
         rm -rf $JOB_DIR
         """
 
+rule parse_sim_metadata:
+    input:
+        metadata="record_metadata.json"
+    output:
+        cmd_file="cmsDriver_sim.txt"
+    params:
+        get_curl=0,
+        step="sim"
+    container:
+        "docker://cernopendata/cernopendata-client:latest"
+    shell:
+        """
+            set -e
+            python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        """
+
 rule sim:
     input:
-        "results/gen_{jobIndex}.root"
+        gen_results="results/gen_{jobIndex}.root",
+        cmd_file="cmsDriver_sim.txt"
     output:
         "results/sim_{jobIndex}.root"
     container:
@@ -138,21 +159,12 @@ rule sim:
 
         echo "Running SIM workflow"
 
+        export JOB_INDEX={wildcards.jobIndex}
+        export EVENTS={params.events}
+        export INPUT_FILE=$WORKDIR/{input.gen_results}
+        
         echo "Running cmsDriver for SIM"
-        cmsDriver.py --python_filename sim_cfg_{wildcards.jobIndex}.py \\
-        --eventcontent RAWSIM \\
-        --datatier GEN-SIM \\
-        --fileout file:sim_output.root \\
-        --conditions 106X_mcRun2_asymptotic_v13 \\
-        --beamspot Realistic25ns13TeV2016Collision \\
-        --step SIM \\
-        --geometry DB:Extended \\
-        --filein file:$WORKDIR/{input} \\
-        --era Run2_2016 \\
-        --runUnscheduled \\
-        --no_exec \\
-        --mc \\
-        -n {params.events}
+        eval "$(cat $WORKDIR/{input.cmd_file})"
 
         echo "Running cmsRun"
         cmsRun sim_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
@@ -178,14 +190,17 @@ rule sim:
         """
 
 rule predigi2raw:
+    input:
+        record_id='pileup_record_id.txt'
     output:
         "results/pileup_file.txt"
     container:
         "docker://cernopendata/cernopendata-client:latest"
     shell:
         """
+        pileup_recid="$(cat {input.record_id})"
         mkdir -p results
-        cernopendata-client get-file-locations --recid 30595 --protocol xrootd > {output}
+        cernopendata-client get-file-locations --recid $pileup_recid --protocol xrootd > {output}
         """
 
 rule digi2raw:
