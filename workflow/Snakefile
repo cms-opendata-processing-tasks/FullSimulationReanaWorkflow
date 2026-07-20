@@ -17,6 +17,8 @@ rule fetch_metadata:
         "docker://cernopendata/cernopendata-client:latest"
     shell:
         """
+        mkdir -p metadata
+        export WORKDIR=$(pwd)
         cernopendata-client get-metadata --recid {RECORD_ID} > {output.metadata}
         """
 
@@ -25,7 +27,8 @@ rule parse_gen_metadata:
         metadata="record_metadata.json"
     output:
         "pileup_record_id.txt",
-        cmd_file="cmsDriver_gen.txt"
+        "gen_env.txt",
+        cmd_file="cmsDriver_gen.txt",
     params:
         get_curl=True,
         step="gen"
@@ -39,7 +42,8 @@ rule parse_gen_metadata:
 
 rule gen:
     input:
-        cmd_file="cmsDriver_gen.txt"
+        cmd_file="cmsDriver_gen.txt",
+        environment="gen_env.txt"
     output:
         "results/gen_{jobIndex}.root"
     params:
@@ -55,13 +59,7 @@ rule gen:
         cd $JOB_DIR
 
         echo "Sourcing CMS environment"
-        export SCRAM_ARCH=slc7_amd64_gcc700
-
-        source /cvmfs/cms.cern.ch/cmsset_default.sh
-
-        scram p CMSSW CMSSW_10_6_30
-
-        cd CMSSW_10_6_30/src/
+        eval "$(cat $WORKDIR/{input.environment})"
 
         echo "Checking WORKDIR"
         ls -lh $WORKDIR/
@@ -115,6 +113,7 @@ rule parse_sim_metadata:
     input:
         metadata="record_metadata.json"
     output:
+        "sim_env.txt",
         cmd_file="cmsDriver_sim.txt"
     params:
         get_curl=0,
@@ -130,7 +129,8 @@ rule parse_sim_metadata:
 rule sim:
     input:
         gen_results="results/gen_{jobIndex}.root",
-        cmd_file="cmsDriver_sim.txt"
+        cmd_file="cmsDriver_sim.txt",
+        environment="sim_env.txt"
     output:
         "results/sim_{jobIndex}.root"
     container:
@@ -146,13 +146,7 @@ rule sim:
         cd $JOB_DIR
 
         echo "Sourcing CMS environment"
-        export SCRAM_ARCH=slc7_amd64_gcc700
-
-        source /cvmfs/cms.cern.ch/cmsset_default.sh
-
-        scram p CMSSW CMSSW_10_6_30
-
-        cd CMSSW_10_6_30/src/
+        eval "$(cat $WORKDIR/{input.environment})"
 
         scram b
         eval `scramv1 runtime -sh`
@@ -207,6 +201,7 @@ rule parse_digi2raw_metadata:
     input:
         metadata="record_metadata.json"
     output:
+        "digi2raw_env.txt",
         cmd_file="cmsDriver_digi2raw.txt"
     params:
         step="digi2raw",
@@ -222,7 +217,8 @@ rule digi2raw:
     input:
         sim="results/sim_{jobIndex}.root",
         pileup="results/pileup_file.txt",
-        cmd_file="cmsDriver_digi2raw.txt"
+        cmd_file="cmsDriver_digi2raw.txt",
+        environment="digi2raw_env.txt"
     output:
         "results/digi2raw_{jobIndex}.root"
     container:
@@ -238,13 +234,7 @@ rule digi2raw:
         cd $JOB_DIR
 
         echo "Sourcing CMS environment"
-        export SCRAM_ARCH=slc7_amd64_gcc700
-
-        source /cvmfs/cms.cern.ch/cmsset_default.sh
-
-        scram p CMSSW CMSSW_10_6_30
-
-        cd CMSSW_10_6_30/src/
+        eval "$(cat $WORKDIR/{input.environment})"
 
         scram b
         eval `scramv1 runtime -sh`

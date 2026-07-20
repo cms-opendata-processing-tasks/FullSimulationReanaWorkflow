@@ -20,6 +20,27 @@ map_step = {
 
 script_content = metadata["methodology"]["steps"][map_step[step]]["configuration_files"][0]["script"]
 
+environment = metadata["methodology"]["steps"][map_step[step]]['release']
+
+with open(f"{step}_env.txt", "w") as f:
+    f.write(environment)
+
+export_pattern = r"(export SCRAM_ARCH\S+)"
+export_match = re.search(export_pattern, script_content)
+
+if export_match:
+    export_scram = export_match.group(0)
+    scram_command = re.search(r"scram\s+p\s+\S+\s+\S+", script_content).group(0)
+    print(export_scram)
+    print(scram_command)
+    release = scram_command.split(" ")[-1]
+    set_env = export_scram + " && source /cvmfs/cms.cern.ch/cmsset_default.sh && " + scram_command + f" && cd {release}/src/"
+
+    with open(f"{step}_env.txt", "w") as f:
+        f.write(set_env)
+else:
+    raise ValueError("export SCRAM_ARCH not found")
+
 if get_curl.lower() == "true":
     curl_pattern = r"(curl.*? -o\s+(\S+))"
     curl_match = re.search(curl_pattern, script_content)
