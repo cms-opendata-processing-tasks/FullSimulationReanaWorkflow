@@ -1,4 +1,4 @@
-RECORD_ID = 35755 #72677 
+RECORD_ID = 72677 #35755  
 
 totalEvents=5
 eventsPerJob=1
@@ -7,8 +7,7 @@ jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
 
 rule all:
     input:
-        expand("results/digi2raw_{jobIndex}.root", jobIndex=jobIndex)
-
+        expand("results/hlt_{jobIndex}.root", jobIndex=jobIndex)
 
 rule fetch_metadata:
     output:
@@ -271,6 +270,76 @@ rule digi2raw:
         cp cmsRun.log $WORKDIR/digi2raw_{wildcards.jobIndex}.log
 
         mv digi2raw_output.root $WORKDIR/{output}
+
+        sync
+        sleep 5
+
+        rm -rf $JOB_DIR
+        """
+
+rule hlt:
+    input:
+        "results/digi2raw_{jobIndex}.root"
+    output:
+        "results/hlt_{jobIndex}.root"
+    container:
+        "docker://cmssw/cc7:latest"
+    params:
+        events=eventsPerJob
+    shell:
+        """
+        set -e
+        export WORKDIR=$(pwd)
+
+        JOB_DIR=$(mktemp -d)
+        cd $JOB_DIR
+
+        echo "Sourcing CMS environment"
+        export SCRAM_ARCH=slc7_amd64_gcc530
+
+        source /cvmfs/cms.cern.ch/cmsset_default.sh
+
+        scram p CMSSW CMSSW_8_0_33_UL
+
+        cd CMSSW_8_0_33_UL/src/
+
+        scram b
+        eval `scramv1 runtime -sh`
+
+        echo "Running HLT workflow"
+
+        cmsDriver.py --python_filename hlt_cfg_{wildcards.jobIndex}.py \\
+        --eventcontent RAWSIM  \\
+        --outputCommand "keep *_mix_*_*,keep *_genPUProtons_*_*" \\
+        --datatier GEN-SIM-RAW \\
+        --inputCommands "keep *","drop *_*_BMTF_*","drop *PixelFEDChannel*_*_*_*" \\
+        --fileout file:hlt_output.root \\
+        --conditions 80X_mcRun2_asymptotic_2016_TrancheIV_v6 \\
+        --customise_commands 'process.source.bypassVersionCheck = cms.untracked.bool(True)' \\
+        --step HLT:25ns15e33_v4 \\
+        --geometry DB:Extended \\
+        --filein file:$WORKDIR/{input} \\
+        --era Run2_2016 \\
+        --no_exec \\
+        --mc \\
+        -n {params.events}
+
+        echo "Running cmsRun"
+        cmsRun hlt_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+
+        echo "Listing directories, to better understand what it looks like:"
+        ls -lh 
+
+        if ! ls *.root 1> /dev/null 2>&1; then
+            echo "[ERROR] cmsRun exited, but no .root file was created"
+            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
+            cat cmsRun.log
+            exit 1
+        fi
+
+        cp cmsRun.log $WORKDIR/hlt_{wildcards.jobIndex}.log
+
+        mv hlt_output.root $WORKDIR/{output}
 
         sync
         sleep 5
