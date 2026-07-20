@@ -14,7 +14,8 @@ with open(metadata_json, "r") as f:
 
 map_step = {
     "gen": 0,
-    "sim": 1
+    "sim": 1,
+    "digi2raw": 2
 }
 
 script_content = metadata["methodology"]["steps"][map_step[step]]["configuration_files"][0]["script"]
@@ -42,14 +43,17 @@ cmsDriver_snakemake = cmsDriver.replace("--customise Configuration/DataProcessin
 cmsDriver_snakemake = re.sub(r"--python_filename\s+\S+", f"--python_filename {step}_cfg_${{JOB_INDEX}}.py", cmsDriver_snakemake)
 cmsDriver_snakemake = re.sub(r"--fileout\s+file:\S+", f"--fileout file:{step}_output.root", cmsDriver_snakemake)
 
-if step == "sim":
+if step != "gen":
     cmsDriver_snakemake = re.sub(r"--filein\s+file:\S+", "--filein file:${INPUT_FILE}", cmsDriver_snakemake)
 
+if step == "sim":
     # get the pileup recordId
     print(metadata['pileup'])
     pileup_record_id = metadata['pileup']['links'][0]['recid']
     with open("pileup_record_id.txt", 'w') as f:
         f.write(pileup_record_id)
+elif step == "digi2raw":
+    cmsDriver_snakemake = re.sub(r"--pileup_input\s+\S+", "--pileup_input ${PILEUP_URL}", cmsDriver_snakemake)
 
 with open(cmsDriver_command_path, "w") as f:
     f.write(cmsDriver_snakemake)
