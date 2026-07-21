@@ -272,9 +272,28 @@ rule digi2raw:
         rm -rf $JOB_DIR
         """
 
+rule parse_hlt_metadata:
+    input:
+        metadata="record_metadata.json"
+    output:
+        "hlt_env.txt",
+        cmd_file="cmsDriver_hlt.txt"
+    params:
+        step="hlt",
+        get_curl=False
+    container:
+        "docker://cernopendata/cernopendata-client:latest"
+    shell:
+        """
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        """
+    
+
 rule hlt:
     input:
-        "results/digi2raw_{jobIndex}.root"
+        digi2raw="results/digi2raw_{jobIndex}.root",
+        cmd_file="cmsDriver_hlt.txt",
+        environment="hlt_env.txt"
     output:
         "results/hlt_{jobIndex}.root"
     container:
@@ -290,34 +309,19 @@ rule hlt:
         cd $JOB_DIR
 
         echo "Sourcing CMS environment"
-        export SCRAM_ARCH=slc7_amd64_gcc530
-
-        source /cvmfs/cms.cern.ch/cmsset_default.sh
-
-        scram p CMSSW CMSSW_8_0_33_UL
-
-        cd CMSSW_8_0_33_UL/src/
+        eval "$(cat $WORKDIR/{input.environment})"
 
         scram b
         eval `scramv1 runtime -sh`
 
         echo "Running HLT workflow"
 
-        cmsDriver.py --python_filename hlt_cfg_{wildcards.jobIndex}.py \\
-        --eventcontent RAWSIM  \\
-        --outputCommand "keep *_mix_*_*,keep *_genPUProtons_*_*" \\
-        --datatier GEN-SIM-RAW \\
-        --inputCommands "keep *","drop *_*_BMTF_*","drop *PixelFEDChannel*_*_*_*" \\
-        --fileout file:hlt_output.root \\
-        --conditions 80X_mcRun2_asymptotic_2016_TrancheIV_v6 \\
-        --customise_commands 'process.source.bypassVersionCheck = cms.untracked.bool(True)' \\
-        --step HLT:25ns15e33_v4 \\
-        --geometry DB:Extended \\
-        --filein file:$WORKDIR/{input} \\
-        --era Run2_2016 \\
-        --no_exec \\
-        --mc \\
-        -n {params.events}
+        export JOB_INDEX={wildcards.jobIndex}
+        export EVENTS={params.events}
+        export INPUT_FILE=$WORKDIR/{input.digi2raw}
+        
+        echo "Running cmsDriver for HLT"
+        eval "$(cat $WORKDIR/{input.cmd_file})"
 
         echo "Running cmsRun"
         cmsRun hlt_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
