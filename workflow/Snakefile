@@ -1,13 +1,15 @@
 RECORD_ID = 72677 #35755  
+BASE_CONTAINER="docker://gitlab-registry.cern.ch/cms-cloud/cmssw-docker/cc7-cms"
 
 totalEvents=3
 eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
 
+
 rule all:
     input:
-        expand("results/hlt_{jobIndex}.root", jobIndex=jobIndex)
+        expand("results/reco_{jobIndex}.root", jobIndex=jobIndex)
 
 rule fetch_metadata:
     output:
@@ -48,7 +50,7 @@ rule gen:
     params:
         events=eventsPerJob
     container:
-        "docker://cmssw/cc7:latest"
+        BASE_CONTAINER
     shell:
         """
         set -e
@@ -133,7 +135,7 @@ rule sim:
     output:
         "results/sim_{jobIndex}.root"
     container:
-        "docker://cmssw/cc7:latest"
+        BASE_CONTAINER
     params:
         events=eventsPerJob
     shell:
@@ -221,7 +223,7 @@ rule digi2raw:
     output:
         "results/digi2raw_{jobIndex}.root"
     container:
-        "docker://cmssw/cc7:latest"
+        BASE_CONTAINER
     params:
         events=eventsPerJob
     shell:
@@ -274,11 +276,11 @@ rule digi2raw:
 
 rule hlt:
     input:
-        "results/digi2raw_{jobIndex}.root"
+        digi2raw="results/digi2raw_{jobIndex}.root"
     output:
         "results/hlt_{jobIndex}.root"
     container:
-        "docker://cmssw/cc7:latest"
+        BASE_CONTAINER
     params:
         events=eventsPerJob
     shell:
@@ -313,7 +315,7 @@ rule hlt:
         --customise_commands 'process.source.bypassVersionCheck = cms.untracked.bool(True)' \\
         --step HLT:25ns15e33_v4 \\
         --geometry DB:Extended \\
-        --filein file:$WORKDIR/{input} \\
+        --filein file:$WORKDIR/{input.digi2raw} \\
         --era Run2_2016 \\
         --no_exec \\
         --mc \\
