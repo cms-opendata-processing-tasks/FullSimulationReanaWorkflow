@@ -377,6 +377,8 @@ rule reco:
         BASE_CONTAINER
     params:
         events=eventsPerJob
+    resources:
+        kubernetes_memory_limit='8Gi'
     shell:
         """
         set -e
@@ -400,9 +402,15 @@ rule reco:
         echo "Running cmsDriver for RECO"
         eval "$(cat $WORKDIR/{input.cmd_file})"
         
+        echo "Adding memory check"
+        cat <<EOF >> reco_cfg_{wildcards.jobIndex}.py
+process.SimpleMemoryCheck = cms.Service("SimpleMemoryCheck",
+    ignoreTotal = cms.untracked.int32(1),
+    oncePerEventMode = cms.untracked.bool(True)
+)
+EOF
         echo "Running cmsRun"
-        /usr/bin/time -v -o $WORKDIR/memory_profile_{wildcards.jobIndex}.txt \
-            cmsRun reco_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true 
+        cmsRun reco_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true 
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
