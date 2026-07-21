@@ -1,6 +1,6 @@
 RECORD_ID = 72677 #35755  
 BASE_CONTAINER="docker://gitlab-registry.cern.ch/cms-cloud/cmssw-docker/cc7-cms"
-OPENDATA_CONTAINER=OPENDATA_CONTAINER
+OPENDATA_CONTAINER="docker://cernopendata/cernopendata-client:latest"
 
 totalEvents=1
 eventsPerJob=1
