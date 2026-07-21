@@ -1,7 +1,8 @@
 RECORD_ID = 72677 #35755  
 BASE_CONTAINER="docker://gitlab-registry.cern.ch/cms-cloud/cmssw-docker/cc7-cms"
+OPENDATA_CONTAINER=OPENDATA_CONTAINER
 
-totalEvents=3
+totalEvents=1
 eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
@@ -15,7 +16,7 @@ rule fetch_metadata:
     output:
         metadata="record_metadata.json"
     container:
-        "docker://cernopendata/cernopendata-client:latest"
+        OPENDATA_CONTAINER
     shell:
         """
         mkdir -p metadata
@@ -34,7 +35,7 @@ rule parse_gen_metadata:
         get_curl=True,
         step="gen"
     container:
-        "docker://cernopendata/cernopendata-client:latest"
+        OPENDATA_CONTAINER
     shell:
         """
         set -e
@@ -120,7 +121,7 @@ rule parse_sim_metadata:
         get_curl=0,
         step="sim"
     container:
-        "docker://cernopendata/cernopendata-client:latest"
+        OPENDATA_CONTAINER
     shell:
         """
         set -e
@@ -190,7 +191,7 @@ rule predigi2raw:
     output:
         "results/pileup_file.txt"
     container:
-        "docker://cernopendata/cernopendata-client:latest"
+        OPENDATA_CONTAINER
     shell:
         """
             pileup_recid="$(cat {input.record_id})"
@@ -208,7 +209,7 @@ rule parse_digi2raw_metadata:
         step="digi2raw",
         get_curl=False
     container:
-        "docker://cernopendata/cernopendata-client:latest"
+        OPENDATA_CONTAINER
     shell:
         """
         python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
@@ -344,6 +345,76 @@ rule hlt:
         rm -rf $JOB_DIR
         """
 
-    
+rule parse_reco_metadata:
+    input:
+        metadata="record_metadata.json"
+    output:
+        "reco_env.txt",
+        cmd_file="cmsDriver_reco.txt"
+    params:
+        step="reco",
+        get_curl=False
+    container:
+        OPENDATA_CONTAINER
+    shell:
+        """
+        set -e
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        """
 
+rule reco:
+    input:
+        hlt="results/hlt_{jobIndex}.root",
+        cmd_file="cmsDriver_reco.txt",
+        environment="reco_env.txt"
+    output:
+        "results/reco_{jobIndex}.root"
+    container:
+        BASE_CONTAINER
+    params:
+        events=eventsPerJob
+    shell:
+        """
+        set -e
+        export WORKDIR=$(pwd)
+
+        JOB_DIR=$(mktemp -d)
+        cd $JOB_DIR
+
+        echo "Sourcing CMS environment"
+        eval "$(cat $WORKDIR/{input.environment})"
+
+        scram b
+        eval `scramv1 runtime -sh`
+
+        echo "Running RECO workflow"
+
+        export INPUT_FILE=$WORKDIR/{input.hlt}
+        export JOB_INDEX={wildcards.jobIndex}
+        export EVENTS={params.events} 
+
+        echo "Running cmsDriver for RECO"
+        eval "$(cat $WORKDIR/{input.cmd_file})"
         
+        echo "Running cmsRun"
+        cmsRun reco_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+
+        echo "Listing directories, to better understand what it looks like:"
+        ls -lh 
+
+        if ! ls *.root 1> /dev/null 2>&1; then
+            echo "[ERROR] cmsRun exited, but no .root file was created"
+            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
+            cat cmsRun.log
+            exit 1
+        fi
+
+        cp cmsRun.log $WORKDIR/reco_{wildcards.jobIndex}.log
+
+        mv reco_output.root $WORKDIR/{output}
+
+        sync
+        sleep 5
+
+        rm -rf $JOB_DIR
+        """
