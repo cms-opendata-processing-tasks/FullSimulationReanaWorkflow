@@ -401,7 +401,8 @@ rule reco:
         eval "$(cat $WORKDIR/{input.cmd_file})"
         
         echo "Running cmsRun"
-        cmsRun reco_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+        /usr/bin/time -v -o $WORKDIR/memory_profile_{wildcards.jobIndex}.txt \
+            cmsRun reco_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true 
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
