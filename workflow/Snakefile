@@ -378,7 +378,9 @@ rule reco:
     params:
         events=eventsPerJob
     resources:
-        kubernetes_memory_limit='8Gi'
+        compute_backend="htcondorcern",
+        htcondor_max_runtime="espresso", # with a greater number of events, this'll have to be changed to allocate more time for the job to run
+        htcondor_request_memory="6 GB"
     shell:
         """
         set -e
