@@ -10,7 +10,7 @@ jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
 
 rule all:
     input:
-        expand("results/reco_{jobIndex}.root", jobIndex=jobIndex)
+        expand("results/pat_{jobIndex}.root", jobIndex=jobIndex)
 
 rule fetch_metadata:
     output:

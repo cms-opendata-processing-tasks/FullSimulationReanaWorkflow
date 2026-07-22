@@ -17,7 +17,8 @@ map_step = {
     "sim": 1,
     "digi2raw": 2,
     "hlt": 3,
-    "reco": 4
+    "reco": 4,
+    "pat": 5
 }
 
 script_content = metadata["methodology"]["steps"][map_step[step]]["configuration_files"][0]["script"]
