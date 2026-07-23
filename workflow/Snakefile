@@ -1,4 +1,4 @@
-RECORD_ID = 72677 #35755  
+RECORD_ID=72677 #35755  
 BASE_CONTAINER="docker://gitlab-registry.cern.ch/cms-cloud/cmssw-docker/cc7-cms"
 OPENDATA_CONTAINER="docker://cernopendata/cernopendata-client:latest"
 
@@ -6,7 +6,6 @@ totalEvents=1
 eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
-
 
 rule all:
     input:
@@ -49,7 +48,8 @@ rule gen:
     output:
         "results/gen_{jobIndex}.root"
     params:
-        events=eventsPerJob
+        events=eventsPerJob,
+        step="gen"
     container:
         BASE_CONTAINER
     shell:
@@ -87,9 +87,9 @@ rule gen:
         echo "Directory after cmsDriver:"
         ls -lh
 
-        echo "Running cmsRun"
+        echo "Running {params.step} cmsRun"
 
-        cmsRun gen_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
@@ -101,9 +101,9 @@ rule gen:
             exit 1
         fi
 
-        cp cmsRun.log $WORKDIR/gen_{wildcards.jobIndex}.log
+        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv gen_output.root $WORKDIR/{output}
+        mv {params.step}_output.root $WORKDIR/{output}
 
         sync
         sleep 5
@@ -138,7 +138,8 @@ rule sim:
     container:
         BASE_CONTAINER
     params:
-        events=eventsPerJob
+        events=eventsPerJob,
+        step="sim"
     shell:
         """
         set -e
@@ -153,7 +154,7 @@ rule sim:
         scram b
         eval `scramv1 runtime -sh`
 
-        echo "Running SIM workflow"
+        echo "Running {params.step} workflow"
 
         export JOB_INDEX={wildcards.jobIndex}
         export EVENTS={params.events}
@@ -163,7 +164,7 @@ rule sim:
         eval "$(cat $WORKDIR/{input.cmd_file})"
 
         echo "Running cmsRun"
-        cmsRun sim_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
@@ -175,9 +176,9 @@ rule sim:
             exit 1
         fi
 
-        cp cmsRun.log $WORKDIR/sim_{wildcards.jobIndex}.log
+        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv sim_output.root $WORKDIR/{output}
+        mv {params.step}_output.root $WORKDIR/{output}
 
         sync
         sleep 5
@@ -226,7 +227,8 @@ rule digi2raw:
     container:
         BASE_CONTAINER
     params:
-        events=eventsPerJob
+        events=eventsPerJob,
+        step="digi2raw"
     shell:
         """
         set -e
@@ -243,17 +245,17 @@ rule digi2raw:
 
         PILEUP_URL=$(sed -n '{wildcards.jobIndex}p' $WORKDIR/{input.pileup})
 
-        echo "Running DIGI2RAW workflow"
+        echo "Running {params.step} workflow"
 
         export INPUT_FILE=$WORKDIR/{input.sim}
         export JOB_INDEX={wildcards.jobIndex}
         export EVENTS={params.events} 
 
-        echo "Running cmsDriver for DIGI2RAW"
+        echo "Running cmsDriver for {params.step}"
         eval "$(cat $WORKDIR/{input.cmd_file})"
 
         echo "Running cmsRun"
-        cmsRun digi2raw_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
@@ -265,9 +267,9 @@ rule digi2raw:
             exit 1
         fi
 
-        cp cmsRun.log $WORKDIR/digi2raw_{wildcards.jobIndex}.log
+        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv digi2raw_output.root $WORKDIR/{output}
+        mv {params.step}_output.root $WORKDIR/{output}
 
         sync
         sleep 5
@@ -302,7 +304,8 @@ rule hlt:
     container:
         BASE_CONTAINER
     params:
-        events=eventsPerJob
+        events=eventsPerJob,
+        step="hlt"
     shell:
         """
         set -e
@@ -317,17 +320,17 @@ rule hlt:
         scram b
         eval `scramv1 runtime -sh`
 
-        echo "Running HLT workflow"
+        echo "Running {params.step} workflow"
 
         export JOB_INDEX={wildcards.jobIndex}
         export EVENTS={params.events}
         export INPUT_FILE=$WORKDIR/{input.digi2raw}
         
-        echo "Running cmsDriver for HLT"
+        echo "Running cmsDriver for {params.step}"
         eval "$(cat $WORKDIR/{input.cmd_file})"
 
         echo "Running cmsRun"
-        cmsRun hlt_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
@@ -339,9 +342,9 @@ rule hlt:
             exit 1
         fi
 
-        cp cmsRun.log $WORKDIR/hlt_{wildcards.jobIndex}.log
+        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv hlt_output.root $WORKDIR/{output}
+        mv {params.step}_output.root $WORKDIR/{output}
 
         sync
         sleep 5
@@ -376,7 +379,8 @@ rule reco:
     container:
         BASE_CONTAINER
     params:
-        events=eventsPerJob
+        events=eventsPerJob,
+        step="reco"
     resources:
         compute_backend="htcondorcern",
         htcondor_max_runtime="espresso", # with a greater number of events, this'll have to be changed to allocate more time for the job to run
@@ -395,24 +399,24 @@ rule reco:
         scram b
         eval `scramv1 runtime -sh`
 
-        echo "Running RECO workflow"
+        echo "Running {params.step} workflow"
 
         export INPUT_FILE=$WORKDIR/{input.hlt}
         export JOB_INDEX={wildcards.jobIndex}
         export EVENTS={params.events} 
 
-        echo "Running cmsDriver for RECO"
+        echo "Running cmsDriver for {params.step}"
         eval "$(cat $WORKDIR/{input.cmd_file})"
         
         echo "Adding memory check"
-        cat <<EOF >> reco_cfg_{wildcards.jobIndex}.py
+        cat <<EOF >> {params.step}_cfg_{wildcards.jobIndex}.py
 process.SimpleMemoryCheck = cms.Service("SimpleMemoryCheck",
     ignoreTotal = cms.untracked.int32(1),
     oncePerEventMode = cms.untracked.bool(True)
 )
 EOF
         echo "Running cmsRun"
-        cmsRun reco_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true 
+        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true 
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
@@ -424,9 +428,9 @@ EOF
             exit 1
         fi
 
-        cp cmsRun.log $WORKDIR/reco_{wildcards.jobIndex}.log
+        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv reco_output.root $WORKDIR/{output}
+        mv {params.step}_output.root $WORKDIR/{output}
 
         sync
         sleep 5
