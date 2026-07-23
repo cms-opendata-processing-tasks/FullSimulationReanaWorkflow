@@ -18,7 +18,8 @@ map_step = {
     "digi2raw": 2,
     "hlt": 3,
     "reco": 4,
-    "pat": 5
+    "pat": 5,
+    "nano": 6
 }
 
 script_content = metadata["methodology"]["steps"][map_step[step]]["configuration_files"][0]["script"]
@@ -68,7 +69,7 @@ cmsDriver_snakemake = re.sub(r"--python_filename\s+\S+", f"--python_filename {st
 cmsDriver_snakemake = re.sub(r"--fileout\s+file:\S+", f"--fileout file:{step}_output.root", cmsDriver_snakemake)
 
 if step != "gen":
-    cmsDriver_snakemake = re.sub(r"--filein\s+file:\S+", "--filein file:${INPUT_FILE}", cmsDriver_snakemake)
+    cmsDriver_snakemake = re.sub(r"--filein [\"']?(file|dbs):[^\s\"']+[\"']?", r"--filein file:${INPUT_FILE}", cmsDriver_snakemake)
 
 if step == "sim":
     # get the pileup recordId
