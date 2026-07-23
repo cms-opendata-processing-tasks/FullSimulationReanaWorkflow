@@ -559,6 +559,8 @@ rule nano:
         export JOB_INDEX={wildcards.jobIndex}
         export EVENTS={params.events} 
 
+        sed -i 's/--eventcontent [^ ]*/--eventcontent NANOAODSIM/g' $WORKDIR/{input.cmd_file}
+
         echo "Running cmsDriver for NANO"
         eval "$(cat $WORKDIR/{input.cmd_file})"
         
