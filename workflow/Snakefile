@@ -7,10 +7,9 @@ eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
 
-
 rule all:
     input:
-        expand("results/reco_{jobIndex}.root", jobIndex=jobIndex)
+        expand("results/nano_{jobIndex}.root", jobIndex=jobIndex)
 
 rule fetch_metadata:
     output:
@@ -290,7 +289,6 @@ rule parse_hlt_metadata:
         """
         python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
         """
-    
 
 rule hlt:
     input:
@@ -431,3 +429,153 @@ EOF
 
         rm -rf $JOB_DIR
         """
+
+rule parse_pat_metadata:
+    input:
+        metadata="record_metadata.json"
+    output:
+        "pat_env.txt",
+        cmd_file="cmsDriver_pat.txt"
+    params:
+        step="pat",
+        get_curl=False
+    container:
+        OPENDATA_CONTAINER
+    shell:
+        """
+        set -e
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        """
+
+rule pat:
+    input:
+        reco="results/reco_{jobIndex}.root",
+        environment="pat_env.txt",
+        cmd_file="cmsDriver_pat.txt"
+    output:
+        "results/pat_{jobIndex}.root"
+    params:
+        events=eventsPerJob 
+    container:
+        BASE_CONTAINER 
+    shell:
+        """
+        set -e
+        export WORKDIR=$(pwd)
+
+        JOB_DIR=$(mktemp -d)
+        cd $JOB_DIR
+
+        echo "Sourcing CMS environment"
+        eval "$(cat $WORKDIR/{input.environment})"
+
+        scram b
+        eval `scramv1 runtime -sh`
+
+        echo "Running PAT workflow"
+
+        export INPUT_FILE=$WORKDIR/{input.reco}
+        export JOB_INDEX={wildcards.jobIndex}
+        export EVENTS={params.events} 
+
+        echo "Running cmsDriver for PAT"
+        eval "$(cat $WORKDIR/{input.cmd_file})"
+        
+        echo "Running cmsRun"
+        cmsRun pat_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+
+        echo "Listing directories, to better understand what it looks like:"
+        ls -lh 
+
+        if ! ls *.root 1> /dev/null 2>&1; then
+            echo "[ERROR] cmsRun exited, but no .root file was created"
+            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
+            cat cmsRun.log
+            exit 1
+        fi
+
+        cp cmsRun.log $WORKDIR/pat_{wildcards.jobIndex}.log
+
+        mv pat_output.root $WORKDIR/{output}
+
+        sync
+        sleep 5
+
+        rm -rf $JOB_DIR
+        """
+
+rule parse_nano_metadata:
+    input:
+        metadata="record_metadata.json"
+    output:
+        "nano_env.txt",
+        cmd_file="cmsDriver_nano.txt"
+    params:
+        step="nano",
+        get_curl=False
+    container:
+        OPENDATA_CONTAINER
+    shell:
+        """
+        set -e
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        """
+
+rule nano:
+    input:
+        pat="results/pat_{jobIndex}.root",
+        environment="nano_env.txt",
+        cmd_file="cmsDriver_nano.txt"
+    output:
+        "results/nano_{jobIndex}.root"
+    params:
+        events=eventsPerJob 
+    container:
+        BASE_CONTAINER
+    shell:
+        """
+        set -e
+        export WORKDIR=$(pwd)
+
+        JOB_DIR=$(mktemp -d)
+        cd $JOB_DIR
+
+        echo "Sourcing CMS environment"
+        eval "$(cat $WORKDIR/{input.environment})"
+
+        scram b
+        eval `scramv1 runtime -sh`
+
+        echo "Running NANO workflow"
+
+        export INPUT_FILE=$WORKDIR/{input.pat}
+        export JOB_INDEX={wildcards.jobIndex}
+        export EVENTS={params.events} 
+
+        echo "Running cmsDriver for NANO"
+        eval "$(cat $WORKDIR/{input.cmd_file})"
+        
+        echo "Running cmsRun"
+        cmsRun nano_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+
+        echo "Listing directories, to better understand what it looks like:"
+        ls -lh 
+
+        if ! ls *.root 1> /dev/null 2>&1; then
+            echo "[ERROR] cmsRun exited, but no .root file was created"
+            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
+            cat cmsRun.log
+            exit 1
+        fi
+
+        cp cmsRun.log $WORKDIR/nano_{wildcards.jobIndex}.log
+
+        mv nano_output.root $WORKDIR/{output}
+
+        sync
+        sleep 5
+
+        rm -rf $JOB_DIR
+        """
+
+        
