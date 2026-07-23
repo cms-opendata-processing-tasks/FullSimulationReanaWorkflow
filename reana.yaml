@@ -1,11 +1,13 @@
+version: 0.9.4
 inputs:
   files:
   - workflow/Snakefile
   - workflow/scripts/parse_metadata.py
-version: 0.9.4
 workflow:
   file: workflow/Snakefile
+  type: snakemake
+
+  kerberos: true
   resources:
     cvmfs:
     - cms.cern.ch
-  type: snakemake
