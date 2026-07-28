@@ -2,9 +2,12 @@
 .apptainer_tmp
 .snakemake
 reana-env.sh
+reana-qa-env.sh
+CMSSW_10_6_30
 results
 ADPS.lhe
 cmsDriver_command.txt
 Configuration/
 test.py
 record_metadata.json
+plot_env
