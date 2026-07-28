@@ -2,7 +2,9 @@ RECORD_ID=72677 #35755
 BASE_CONTAINER="docker://gitlab-registry.cern.ch/cms-cloud/cmssw-docker/cc7-cms"
 OPENDATA_CONTAINER="docker://cernopendata/cernopendata-client:latest"
 
-totalEvents=1
+EOS_PATH=config.get("eos_outdir", "not found")
+
+totalEvents=config.get("events", 0)
 eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
@@ -18,8 +20,6 @@ rule fetch_metadata:
         OPENDATA_CONTAINER
     shell:
         """
-        mkdir -p metadata
-        export WORKDIR=$(pwd)
         cernopendata-client get-metadata --recid {RECORD_ID} > {output.metadata}
         """
 
@@ -27,7 +27,6 @@ rule parse_gen_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        "pileup_record_id.txt",
         "gen_env.txt",
         cmd_file="cmsDriver_gen.txt",
     params:
@@ -46,7 +45,7 @@ rule gen:
         cmd_file="cmsDriver_gen.txt",
         environment="gen_env.txt"
     output:
-        "results/gen_{jobIndex}.root"
+        "results/gen_{jobIndex}_confirm.txt"
     params:
         events=eventsPerJob,
         step="gen"
@@ -102,23 +101,26 @@ rule gen:
         fi
 
         cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
-
-        mv {params.step}_output.root $WORKDIR/{output}
+        
+        mkdir -p {EOS_PATH}/results && cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
 
         sync
         sleep 5
 
         rm -rf $JOB_DIR
+
+        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt    
         """
 
 rule parse_sim_metadata:
     input:
         metadata="record_metadata.json"
     output:
+        "pileup_record_id.txt",
         "sim_env.txt",
         cmd_file="cmsDriver_sim.txt"
     params:
-        get_curl=0,
+        get_curl=False,
         step="sim"
     container:
         OPENDATA_CONTAINER
@@ -130,16 +132,17 @@ rule parse_sim_metadata:
 
 rule sim:
     input:
-        gen_results="results/gen_{jobIndex}.root",
+        "results/gen_{jobIndex}_confirm.txt",
         cmd_file="cmsDriver_sim.txt",
         environment="sim_env.txt"
     output:
-        "results/sim_{jobIndex}.root"
+        "results/sim_{jobIndex}_confirm.txt"
     container:
         BASE_CONTAINER
     params:
         events=eventsPerJob,
-        step="sim"
+        step="sim",
+        prev_step="gen"
     shell:
         """
         set -e
@@ -157,8 +160,8 @@ rule sim:
         echo "Running {params.step} workflow"
 
         export JOB_INDEX={wildcards.jobIndex}
-        export EVENTS={params.events}
-        export INPUT_FILE=$WORKDIR/{input.gen_results}
+        export EVENTS={params.events} 
+        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
         
         echo "Running cmsDriver for SIM"
         eval "$(cat $WORKDIR/{input.cmd_file})"
@@ -178,11 +181,12 @@ rule sim:
 
         cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv {params.step}_output.root $WORKDIR/{output}
+        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
 
         sync
         sleep 5
 
+        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
         rm -rf $JOB_DIR
         """
 
@@ -218,17 +222,18 @@ rule parse_digi2raw_metadata:
 
 rule digi2raw:
     input:
-        sim="results/sim_{jobIndex}.root",
+        "results/sim_{jobIndex}_confirm.txt",
         pileup="results/pileup_file.txt",
         cmd_file="cmsDriver_digi2raw.txt",
         environment="digi2raw_env.txt"
     output:
-        "results/digi2raw_{jobIndex}.root"
+        "results/digi2raw_{jobIndex}_confirm.txt"
     container:
         BASE_CONTAINER
     params:
         events=eventsPerJob,
-        step="digi2raw"
+        step="digi2raw",
+        prev_step="sim"
     shell:
         """
         set -e
@@ -247,11 +252,11 @@ rule digi2raw:
 
         echo "Running {params.step} workflow"
 
-        export INPUT_FILE=$WORKDIR/{input.sim}
         export JOB_INDEX={wildcards.jobIndex}
         export EVENTS={params.events} 
-
-        echo "Running cmsDriver for {params.step}"
+        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
+        
+        echo "Running cmsDriver for SIM"
         eval "$(cat $WORKDIR/{input.cmd_file})"
 
         echo "Running cmsRun"
@@ -269,11 +274,12 @@ rule digi2raw:
 
         cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv {params.step}_output.root $WORKDIR/{output}
+        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
 
         sync
         sleep 5
 
+        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
         rm -rf $JOB_DIR
         """
 
@@ -295,16 +301,17 @@ rule parse_hlt_metadata:
 
 rule hlt:
     input:
-        digi2raw="results/digi2raw_{jobIndex}.root",
+        "results/digi2raw_{jobIndex}_confirm.txt",
         cmd_file="cmsDriver_hlt.txt",
         environment="hlt_env.txt"
     output:
-        "results/hlt_{jobIndex}.root"
+        "results/hlt_{jobIndex}_confirm.txt"
     container:
         BASE_CONTAINER
     params:
         events=eventsPerJob,
-        step="hlt"
+        step="hlt",
+        prev_step="digi2raw"
     shell:
         """
         set -e
@@ -322,10 +329,10 @@ rule hlt:
         echo "Running {params.step} workflow"
 
         export JOB_INDEX={wildcards.jobIndex}
-        export EVENTS={params.events}
-        export INPUT_FILE=$WORKDIR/{input.digi2raw}
+        export EVENTS={params.events} 
+        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
         
-        echo "Running cmsDriver for {params.step}"
+        echo "Running cmsDriver for SIM"
         eval "$(cat $WORKDIR/{input.cmd_file})"
 
         echo "Running cmsRun"
@@ -343,11 +350,12 @@ rule hlt:
 
         cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv {params.step}_output.root $WORKDIR/{output}
+        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
 
         sync
         sleep 5
 
+        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
         rm -rf $JOB_DIR
         """
 
@@ -370,24 +378,19 @@ rule parse_reco_metadata:
 
 rule reco:
     input:
-        hlt="results/hlt_{jobIndex}.root",
+        "results/hlt_{jobIndex}_confirm.txt",
         cmd_file="cmsDriver_reco.txt",
         environment="reco_env.txt"
     output:
-        "results/reco_{jobIndex}.root"
+        "results/reco_{jobIndex}_confirm.txt"
     container:
         BASE_CONTAINER
     params:
         events=eventsPerJob,
-        step="reco"
+        step="reco",
+        prev_step="hlt"
     resources:
-        kubernetes_memory_limit="8Gi"
-    '''
-    resources:
-        compute_backend="htcondorcern",
-        htcondor_max_runtime="espresso", # with a greater number of events, this'll have to be changed to allocate more time for the job to run
-        htcondor_request_memory="6 GB"
-        '''
+        kubernetes_memory_limit='8Gi'
     shell:
         """
         set -e
@@ -404,22 +407,15 @@ rule reco:
 
         echo "Running {params.step} workflow"
 
-        export INPUT_FILE=$WORKDIR/{input.hlt}
         export JOB_INDEX={wildcards.jobIndex}
         export EVENTS={params.events} 
-
-        echo "Running cmsDriver for {params.step}"
-        eval "$(cat $WORKDIR/{input.cmd_file})"
+        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
         
-        echo "Adding memory check"
-        cat <<EOF >> {params.step}_cfg_{wildcards.jobIndex}.py
-process.SimpleMemoryCheck = cms.Service("SimpleMemoryCheck",
-    ignoreTotal = cms.untracked.int32(1),
-    oncePerEventMode = cms.untracked.bool(True)
-)
-EOF
+        echo "Running cmsDriver for SIM"
+        eval "$(cat $WORKDIR/{input.cmd_file})"
+
         echo "Running cmsRun"
-        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true 
+        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
@@ -433,11 +429,12 @@ EOF
 
         cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv {params.step}_output.root $WORKDIR/{output}
+        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
 
         sync
         sleep 5
 
+        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
         rm -rf $JOB_DIR
         """
 

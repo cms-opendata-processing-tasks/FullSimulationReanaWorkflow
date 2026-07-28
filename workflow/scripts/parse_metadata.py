@@ -35,8 +35,8 @@ export_match = re.search(export_pattern, script_content)
 if export_match:
     export_scram = export_match.group(0)
     scram_command = re.search(r"scram\s+p\s+\S+\s+\S+", script_content).group(0)
-    print(export_scram)
-    print(scram_command)
+    # print(export_scram)
+    # print(scram_command)
     release = scram_command.split(" ")[-1]
     set_env = export_scram + " && source /cvmfs/cms.cern.ch/cmsset_default.sh && " + scram_command + f" && cd {release}/src/"
 
@@ -50,7 +50,7 @@ if get_curl.lower() == "true":
     curl_match = re.search(curl_pattern, script_content)
     if curl_match:
         curl_command = curl_match.group(1)
-        print(curl_command)
+        # print(curl_command)
     else:
         raise ValueError("Fragment URL not found")
 
@@ -59,7 +59,7 @@ if get_curl.lower() == "true":
 cmsDriver_pattern = r"cmsDriver\.py.*?-n\s+\S+"
 cmsDriver_match = re.search(cmsDriver_pattern, script_content, re.DOTALL)
 if cmsDriver_match:
-    print(cmsDriver_match.group(0))
+    # print(cmsDriver_match.group(0))
     cmsDriver = cmsDriver_match.group(0)
 else:
     raise ValueError("cmsDriver.py command not found")
@@ -73,7 +73,7 @@ if step != "gen":
 
 if step == "sim":
     # get the pileup recordId
-    print(metadata['pileup'])
+    # print(metadata['pileup'])
     pileup_record_id = metadata['pileup']['links'][0]['recid']
     with open("pileup_record_id.txt", 'w') as f:
         f.write(pileup_record_id)
