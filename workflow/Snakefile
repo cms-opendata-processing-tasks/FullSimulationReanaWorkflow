@@ -11,7 +11,7 @@ jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
 
 rule all:
     input:
-        "results/nano_merged.root"
+        "results/nano_merged_confirm.txt"
 
 rule fetch_metadata:
     output:
@@ -457,13 +457,15 @@ rule parse_pat_metadata:
 
 rule pat:
     input:
-        reco="results/reco_{jobIndex}.root",
+        "results/reco_{jobIndex}_confirm.txt",
         environment="pat_env.txt",
         cmd_file="cmsDriver_pat.txt"
     output:
-        "results/pat_{jobIndex}.root"
+        "results/pat_{jobIndex}_confirm.txt"
     params:
-        events=eventsPerJob 
+        events=eventsPerJob,
+        step="pat",
+        prev_step="reco"
     container:
         BASE_CONTAINER 
     shell:
@@ -480,17 +482,17 @@ rule pat:
         scram b
         eval `scramv1 runtime -sh`
 
-        echo "Running PAT workflow"
+        echo "Running {params.step} workflow"
 
-        export INPUT_FILE=$WORKDIR/{input.reco}
         export JOB_INDEX={wildcards.jobIndex}
         export EVENTS={params.events} 
-
-        echo "Running cmsDriver for PAT"
-        eval "$(cat $WORKDIR/{input.cmd_file})"
+        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
         
+        echo "Running cmsDriver for SIM"
+        eval "$(cat $WORKDIR/{input.cmd_file})"
+
         echo "Running cmsRun"
-        cmsRun pat_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
@@ -502,13 +504,14 @@ rule pat:
             exit 1
         fi
 
-        cp cmsRun.log $WORKDIR/pat_{wildcards.jobIndex}.log
+        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv pat_output.root $WORKDIR/{output}
+        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
 
         sync
         sleep 5
 
+        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
         rm -rf $JOB_DIR
         """
 
@@ -531,13 +534,15 @@ rule parse_nano_metadata:
 
 rule nano:
     input:
-        pat="results/pat_{jobIndex}.root",
+        "results/pat_{jobIndex}_confirm.txt",
         environment="nano_env.txt",
         cmd_file="cmsDriver_nano.txt"
     output:
-        "results/nano_{jobIndex}.root"
+        "results/nano_{jobIndex}_confirm.txt"
     params:
-        events=eventsPerJob 
+        events=eventsPerJob,
+        step="nano",
+        prev_step="pat"
     container:
         BASE_CONTAINER
     shell:
@@ -554,19 +559,17 @@ rule nano:
         scram b
         eval `scramv1 runtime -sh`
 
-        echo "Running NANO workflow"
+        echo "Running {params.step} workflow"
 
-        export INPUT_FILE=$WORKDIR/{input.pat}
         export JOB_INDEX={wildcards.jobIndex}
         export EVENTS={params.events} 
-
-        sed -i 's/--eventcontent [^ ]*/--eventcontent NANOAODSIM/g' $WORKDIR/{input.cmd_file}
-
-        echo "Running cmsDriver for NANO"
-        eval "$(cat $WORKDIR/{input.cmd_file})"
+        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
         
+        echo "Running cmsDriver for SIM"
+        eval "$(cat $WORKDIR/{input.cmd_file})"
+
         echo "Running cmsRun"
-        cmsRun nano_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
         echo "Listing directories, to better understand what it looks like:"
         ls -lh 
@@ -578,21 +581,26 @@ rule nano:
             exit 1
         fi
 
-        cp cmsRun.log $WORKDIR/nano_{wildcards.jobIndex}.log
+        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
 
-        mv nano_output.root $WORKDIR/{output}
+        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
 
         sync
         sleep 5
 
+        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
         rm -rf $JOB_DIR
         """
 
 rule merge_nano:
     input:
-        expand("results/nano_{jobIndex}.root", jobIndex=jobIndex)
+        expand("results/nano_{jobIndex}_confirm.txt", jobIndex=jobIndex)
     output:
-        "results/nano_merged.root"
+        merged_local="results/nano_merged.root",
+        confirm_merge="results/nano_merged_confirm.txt"
+    params:
+        eos_inputs=" ".join([f"{EOS_PATH}/results/nano_{i}.root" for i in jobIndex]),
+        eos_output=f"{EOS_PATH}/results/nano_merged.root"
     container:
         BASE_CONTAINER
     shell:
@@ -607,8 +615,10 @@ rule merge_nano:
         cd ../../
         
         echo "Merging all NanoAOD files..."
-        hadd -f {output} {input}
+        hadd -f {output.merged_local} {params.eos_inputs}
+
+        cp {output.merged_local} {params.eos_output}
         
-        echo "Merge complete!"
-        """    
-        
+        rm {output.merged_local}
+        echo "Merge complete" > {output.confirm_merge}
+        """

@@ -7,7 +7,7 @@ inputs:
     # Provide the number of events you want the workflow to simulate
     events: 1
     # Provide the eos_dir you want the results to be stored in
-    eos_outdir: "/eos/user/k/kabuquti/FullSimulationReanaWorkflow"
+    eos_outdir: "/eos/user/j/johndoe/my_project"
 workflow:
   file: workflow/Snakefile
   type: snakemake
