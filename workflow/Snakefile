@@ -9,7 +9,7 @@ jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
 
 rule all:
     input:
-        expand("results/nano_{jobIndex}.root", jobIndex=jobIndex)
+        "results/nano_merged.root"
 
 rule fetch_metadata:
     output:
@@ -381,9 +381,13 @@ rule reco:
         events=eventsPerJob,
         step="reco"
     resources:
+        kubernetes_memory_limit="8Gi"
+    '''
+    resources:
         compute_backend="htcondorcern",
         htcondor_max_runtime="espresso", # with a greater number of events, this'll have to be changed to allocate more time for the job to run
         htcondor_request_memory="6 GB"
+        '''
     shell:
         """
         set -e
@@ -587,4 +591,27 @@ rule nano:
         rm -rf $JOB_DIR
         """
 
+rule merge_nano:
+    input:
+        expand("results/nano_{jobIndex}.root", jobIndex=jobIndex)
+    output:
+        "results/nano_merged.root"
+    container:
+        BASE_CONTAINER
+    shell:
+        """
+        echo "Sourcing CMS environment to get ROOT..."
+        export SCRAM_ARCH=slc7_amd64_gcc700
+        source /cvmfs/cms.cern.ch/cmsset_default.sh
+        
+        scram p CMSSW CMSSW_10_6_30
+        cd CMSSW_10_6_30/src/
+        eval `scramv1 runtime -sh`
+        cd ../../
+        
+        echo "Merging all NanoAOD files..."
+        hadd -f {output} {input}
+        
+        echo "Merge complete!"
+        """    
         
