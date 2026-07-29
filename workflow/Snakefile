@@ -30,14 +30,13 @@ rule parse_gen_metadata:
         "gen_env.txt",
         cmd_file="cmsDriver_gen.txt",
     params:
-        get_curl=True,
         step="gen"
     container:
         OPENDATA_CONTAINER
     shell:
         """
         set -e
-        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
         """
 
 rule gen:
@@ -120,14 +119,13 @@ rule parse_sim_metadata:
         "sim_env.txt",
         cmd_file="cmsDriver_sim.txt"
     params:
-        get_curl=False,
         step="sim"
     container:
         OPENDATA_CONTAINER
     shell:
         """
         set -e
-        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
         """
 
 rule sim:
@@ -211,13 +209,12 @@ rule parse_digi2raw_metadata:
         "digi2raw_env.txt",
         cmd_file="cmsDriver_digi2raw.txt"
     params:
-        step="digi2raw",
-        get_curl=False
+        step="digi2raw"
     container:
         OPENDATA_CONTAINER
     shell:
         """
-        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
         """
 
 rule digi2raw:
@@ -256,7 +253,7 @@ rule digi2raw:
         export EVENTS={params.events} 
         export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
         
-        echo "Running cmsDriver for SIM"
+        echo "Running cmsDriver for {params.step}"
         eval "$(cat $WORKDIR/{input.cmd_file})"
 
         echo "Running cmsRun"
@@ -290,13 +287,12 @@ rule parse_hlt_metadata:
         "hlt_env.txt",
         cmd_file="cmsDriver_hlt.txt"
     params:
-        step="hlt",
-        get_curl=False
+        step="hlt"
     container:
         "docker://cernopendata/cernopendata-client:latest"
     shell:
         """
-        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
         """
 
 rule hlt:
@@ -366,14 +362,13 @@ rule parse_reco_metadata:
         "reco_env.txt",
         cmd_file="cmsDriver_reco.txt"
     params:
-        step="reco",
-        get_curl=False
+        step="reco"
     container:
         OPENDATA_CONTAINER
     shell:
         """
         set -e
-        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
         """
 
 rule reco:
@@ -445,14 +440,13 @@ rule parse_pat_metadata:
         "pat_env.txt",
         cmd_file="cmsDriver_pat.txt"
     params:
-        step="pat",
-        get_curl=False
+        step="pat"
     container:
         OPENDATA_CONTAINER
     shell:
         """
         set -e
-        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
         """
 
 rule pat:
@@ -522,14 +516,13 @@ rule parse_nano_metadata:
         "nano_env.txt",
         cmd_file="cmsDriver_nano.txt"
     params:
-        step="nano",
-        get_curl=False
+        step="nano"
     container:
         OPENDATA_CONTAINER
     shell:
         """
         set -e
-        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step} {params.get_curl}
+        python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
         """
 
 rule nano:

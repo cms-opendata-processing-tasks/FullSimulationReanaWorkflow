@@ -7,7 +7,6 @@ import subprocess
 metadata_json = sys.argv[1]
 cmsDriver_command_path = sys.argv[2]
 step = sys.argv[3]
-get_curl = sys.argv[4]
 
 with open(metadata_json, "r") as f:
     metadata = json.load(f)
@@ -45,17 +44,6 @@ if export_match:
 else:
     raise ValueError("export SCRAM_ARCH not found")
 
-if get_curl.lower() == "true":
-    curl_pattern = r"(curl.*? -o\s+(\S+))"
-    curl_match = re.search(curl_pattern, script_content)
-    if curl_match:
-        curl_command = curl_match.group(1)
-        # print(curl_command)
-    else:
-        raise ValueError("Fragment URL not found")
-
-    subprocess.run(curl_command, shell=True)
-
 cmsDriver_pattern = r"cmsDriver\.py.*?-n\s+\S+"
 cmsDriver_match = re.search(cmsDriver_pattern, script_content, re.DOTALL)
 if cmsDriver_match:
@@ -70,6 +58,16 @@ cmsDriver_snakemake = re.sub(r"--fileout\s+file:\S+", f"--fileout file:{step}_ou
 
 if step != "gen":
     cmsDriver_snakemake = re.sub(r"--filein [\"']?(file|dbs):[^\s\"']+[\"']?", r"--filein file:${INPUT_FILE}", cmsDriver_snakemake)
+else:
+    curl_pattern = r"(curl.*? -o\s+(\S+))"
+    curl_match = re.search(curl_pattern, script_content)
+    if curl_match:
+        curl_command = curl_match.group(1)
+        # print(curl_command)
+    else:
+        raise ValueError("Fragment URL not found")
+
+    subprocess.run(curl_command, shell=True)
 
 if step == "sim":
     # get the pileup recordId
