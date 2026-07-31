@@ -15,7 +15,7 @@ rule all:
 
 rule fetch_metadata:
     output:
-        metadata="record_metadata.json"
+        metadata=temporary("record_metadata.json")
     container:
         OPENDATA_CONTAINER
     shell:
@@ -27,8 +27,8 @@ rule parse_gen_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        "gen_env.txt",
-        cmd_file="cmsDriver_gen.txt",
+        temporary("gen_env.txt"),
+        cmd_file=temporary("cmsDriver_gen.txt")
     params:
         step="gen"
     container:
@@ -44,7 +44,7 @@ rule gen:
         cmd_file="cmsDriver_gen.txt",
         environment="gen_env.txt"
     output:
-        "results/gen_{jobIndex}_confirm.txt"
+        temporary("results/gen_{jobIndex}_confirm.txt")
     params:
         events=eventsPerJob,
         step="gen"
@@ -115,9 +115,9 @@ rule parse_sim_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        "pileup_record_id.txt",
-        "sim_env.txt",
-        cmd_file="cmsDriver_sim.txt"
+        temporary("pileup_record_id.txt"),
+        temporary("sim_env.txt"),
+        cmd_file=temporary("cmsDriver_sim.txt")
     params:
         step="sim"
     container:
@@ -134,7 +134,7 @@ rule sim:
         cmd_file="cmsDriver_sim.txt",
         environment="sim_env.txt"
     output:
-        "results/sim_{jobIndex}_confirm.txt"
+        temporary("results/sim_{jobIndex}_confirm.txt")
     container:
         BASE_CONTAINER
     params:
@@ -192,7 +192,7 @@ rule predigi2raw:
     input:
         record_id='pileup_record_id.txt'
     output:
-        "results/pileup_file.txt"
+        temporary("results/pileup_file.txt")
     container:
         OPENDATA_CONTAINER
     shell:
@@ -206,8 +206,8 @@ rule parse_digi2raw_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        "digi2raw_env.txt",
-        cmd_file="cmsDriver_digi2raw.txt"
+        temporary("digi2raw_env.txt"),
+        cmd_file=temporary("cmsDriver_digi2raw.txt")
     params:
         step="digi2raw"
     container:
@@ -224,7 +224,7 @@ rule digi2raw:
         cmd_file="cmsDriver_digi2raw.txt",
         environment="digi2raw_env.txt"
     output:
-        "results/digi2raw_{jobIndex}_confirm.txt"
+        temporary("results/digi2raw_{jobIndex}_confirm.txt")
     container:
         BASE_CONTAINER
     params:
@@ -284,12 +284,12 @@ rule parse_hlt_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        "hlt_env.txt",
-        cmd_file="cmsDriver_hlt.txt"
+        temporary("hlt_env.txt"),
+        cmd_file=temporary("cmsDriver_hlt.txt")
     params:
         step="hlt"
     container:
-        "docker://cernopendata/cernopendata-client:latest"
+        OPENDATA_CONTAINER
     shell:
         """
         python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
@@ -301,7 +301,7 @@ rule hlt:
         cmd_file="cmsDriver_hlt.txt",
         environment="hlt_env.txt"
     output:
-        "results/hlt_{jobIndex}_confirm.txt"
+        temporary("results/hlt_{jobIndex}_confirm.txt")
     container:
         BASE_CONTAINER
     params:
@@ -359,8 +359,8 @@ rule parse_reco_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        "reco_env.txt",
-        cmd_file="cmsDriver_reco.txt"
+        temporary("reco_env.txt"),
+        cmd_file=temporary("cmsDriver_reco.txt")
     params:
         step="reco"
     container:
@@ -377,7 +377,7 @@ rule reco:
         cmd_file="cmsDriver_reco.txt",
         environment="reco_env.txt"
     output:
-        "results/reco_{jobIndex}_confirm.txt"
+        temporary("results/reco_{jobIndex}_confirm.txt")
     container:
         BASE_CONTAINER
     params:
@@ -437,8 +437,8 @@ rule parse_pat_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        "pat_env.txt",
-        cmd_file="cmsDriver_pat.txt"
+        temporary("pat_env.txt"),
+        cmd_file=temporary("cmsDriver_pat.txt")
     params:
         step="pat"
     container:
@@ -455,7 +455,7 @@ rule pat:
         environment="pat_env.txt",
         cmd_file="cmsDriver_pat.txt"
     output:
-        "results/pat_{jobIndex}_confirm.txt"
+        temporary("results/pat_{jobIndex}_confirm.txt")
     params:
         events=eventsPerJob,
         step="pat",
@@ -513,8 +513,8 @@ rule parse_nano_metadata:
     input:
         metadata="record_metadata.json"
     output:
-        "nano_env.txt",
-        cmd_file="cmsDriver_nano.txt"
+        temporary("nano_env.txt"),
+        cmd_file=temporary("cmsDriver_nano.txt")
     params:
         step="nano"
     container:
@@ -531,7 +531,7 @@ rule nano:
         environment="nano_env.txt",
         cmd_file="cmsDriver_nano.txt"
     output:
-        "results/nano_{jobIndex}_confirm.txt"
+        temporary("results/nano_{jobIndex}_confirm.txt")
     params:
         events=eventsPerJob,
         step="nano",
@@ -589,8 +589,8 @@ rule merge_nano:
     input:
         expand("results/nano_{jobIndex}_confirm.txt", jobIndex=jobIndex)
     output:
-        merged_local="results/nano_merged.root",
-        confirm_merge="results/nano_merged_confirm.txt"
+        merged_local=temporary("results/nano_merged.root"),
+        confirm_merge=temporary("results/nano_merged_confirm.txt")
     params:
         eos_inputs=" ".join([f"{EOS_PATH}/results/nano_{i}.root" for i in jobIndex]),
         eos_output=f"{EOS_PATH}/results/nano_merged.root"
