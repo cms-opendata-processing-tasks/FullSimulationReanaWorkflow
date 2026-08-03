@@ -9,7 +9,7 @@ EOS_PATH=config.get("eos_outdir", "not found")
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
 
-cleanup_command = """
+CLEANUP_SHELL = """
     set -e    
 
     rm {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
@@ -18,6 +18,74 @@ cleanup_command = """
     echo "Cleanup done" > results/cleanup/{params.step}_cleanup_{wildcards.jobIndex}_confirm.txt
 """
 
+MAIN_STEP_SHELL = """
+    set -e
+    export WORKDIR=$(pwd)
+
+    JOB_DIR=$(mktemp -d)
+    cd $JOB_DIR
+
+    echo "Sourcing CMS environment"
+    eval "$(cat $WORKDIR/{input.environment})"
+
+    echo "Checking WORKDIR"
+    ls -lh $WORKDIR/
+
+    export STEP={params.step}
+    if [ "$STEP" = "gen" ]
+    then
+        mkdir -p Configuration/GenProduction/python/
+        cp $WORKDIR/Configuration/GenProduction/python/*.py Configuration/GenProduction/python/
+    else
+        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
+    fi 
+
+    if [ "$STEP" == "digi2raw" ]
+    then
+        export PILEUP_URL=$(sed -n '{wildcards.jobIndex}p' $WORKDIR/{params.pileup})
+    fi
+
+    echo "Reached scramming"
+    scram b 
+
+    eval `scramv1 runtime -sh`
+
+    mkdir -p $WORKDIR/results
+
+    export EVENTS={params.events}
+    export JOB_INDEX={wildcards.jobIndex}
+
+    echo "Running cmsDriver"
+    
+    eval "$(cat $WORKDIR/{input.cmd_file})"
+    
+    echo "Directory after cmsDriver:"
+    ls -lh
+
+    echo "Running {params.step} cmsRun"
+
+    cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
+
+    echo "Listing directories, to better understand what it looks like:"
+    ls -lh 
+
+    if ! ls *.root 1> /dev/null 2>&1; then
+        echo "[ERROR] cmsRun exited, but no .root file was created"
+        echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
+        cat cmsRun.log
+        exit 1
+    fi
+
+    cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
+    
+    mkdir -p {EOS_PATH}/results && cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
+
+    sync
+    sleep 5
+
+    echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
+    rm -rf $JOB_DIR
+    """
 
 rule all:
     input:
@@ -57,69 +125,13 @@ rule gen:
         temporary("results/gen_{jobIndex}_confirm.txt")
     params:
         events=eventsPerJob,
-        step="gen"
+        step="gen",
+        prev_step="dummy",
+        pileup="dummy"
     container:
         BASE_CONTAINER
     shell:
-        """
-        set -e
-        export WORKDIR=$(pwd)
-
-        JOB_DIR=$(mktemp -d)
-        cd $JOB_DIR
-
-        echo "Sourcing CMS environment"
-        eval "$(cat $WORKDIR/{input.environment})"
-
-        echo "Checking WORKDIR"
-        ls -lh $WORKDIR/
-
-        mkdir -p Configuration/GenProduction/python/
-        cp $WORKDIR/Configuration/GenProduction/python/*.py Configuration/GenProduction/python/
-
-        echo "Reached scramming"
-        scram b 
-
-        eval `scramv1 runtime -sh`
-
-        mkdir -p $WORKDIR/results
-
-        export EVENTS={params.events}
-        export JOB_INDEX={wildcards.jobIndex}
-
-        echo "Running cmsDriver"
-        ls -lh Configuration/GenProduction/python/
-        
-        eval "$(cat $WORKDIR/{input.cmd_file})"
-        
-        echo "Directory after cmsDriver:"
-        ls -lh
-
-        echo "Running {params.step} cmsRun"
-
-        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
-
-        echo "Listing directories, to better understand what it looks like:"
-        ls -lh 
-
-        if ! ls *.root 1> /dev/null 2>&1; then
-            echo "[ERROR] cmsRun exited, but no .root file was created"
-            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
-            cat cmsRun.log
-            exit 1
-        fi
-
-        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
-        
-        mkdir -p {EOS_PATH}/results && cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
-
-        sync
-        sleep 5
-
-        rm -rf $JOB_DIR
-
-        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt    
-        """
+        MAIN_STEP_SHELL
 
 rule parse_sim_metadata:
     input:
@@ -150,53 +162,10 @@ rule sim:
     params:
         events=eventsPerJob,
         step="sim",
-        prev_step="gen"
+        prev_step="gen",
+        pileup="dummy"
     shell:
-        """
-        set -e
-        export WORKDIR=$(pwd)
-
-        JOB_DIR=$(mktemp -d)
-        cd $JOB_DIR
-
-        echo "Sourcing CMS environment"
-        eval "$(cat $WORKDIR/{input.environment})"
-
-        scram b
-        eval `scramv1 runtime -sh`
-
-        echo "Running {params.step} workflow"
-
-        export JOB_INDEX={wildcards.jobIndex}
-        export EVENTS={params.events} 
-        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
-        
-        echo "Running cmsDriver for SIM"
-        eval "$(cat $WORKDIR/{input.cmd_file})"
-
-        echo "Running cmsRun"
-        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
-
-        echo "Listing directories, to better understand what it looks like:"
-        ls -lh 
-
-        if ! ls *.root 1> /dev/null 2>&1; then
-            echo "[ERROR] cmsRun exited, but no .root file was created"
-            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
-            cat cmsRun.log
-            exit 1
-        fi
-
-        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
-
-        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
-
-        sync
-        sleep 5
-
-        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
-        rm -rf $JOB_DIR
-        """
+        MAIN_STEP_SHELL
 
 rule gen_cleanup:
     input:
@@ -208,7 +177,7 @@ rule gen_cleanup:
     container:
         BASE_CONTAINER
     shell:
-        cleanup_command
+        CLEANUP_SHELL
 
 rule predigi2raw:
     input:
@@ -253,55 +222,10 @@ rule digi2raw:
     params:
         events=eventsPerJob,
         step="digi2raw",
-        prev_step="sim"
+        prev_step="sim",
+        pileup="results/pileup_file.txt"
     shell:
-        """
-        set -e
-        export WORKDIR=$(pwd)
-
-        JOB_DIR=$(mktemp -d)
-        cd $JOB_DIR
-
-        echo "Sourcing CMS environment"
-        eval "$(cat $WORKDIR/{input.environment})"
-
-        scram b
-        eval `scramv1 runtime -sh`
-
-        PILEUP_URL=$(sed -n '{wildcards.jobIndex}p' $WORKDIR/{input.pileup})
-
-        echo "Running {params.step} workflow"
-
-        export JOB_INDEX={wildcards.jobIndex}
-        export EVENTS={params.events} 
-        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
-        
-        echo "Running cmsDriver for {params.step}"
-        eval "$(cat $WORKDIR/{input.cmd_file})"
-
-        echo "Running cmsRun"
-        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
-
-        echo "Listing directories, to better understand what it looks like:"
-        ls -lh 
-
-        if ! ls *.root 1> /dev/null 2>&1; then
-            echo "[ERROR] cmsRun exited, but no .root file was created"
-            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
-            cat cmsRun.log
-            exit 1
-        fi
-
-        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
-
-        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
-
-        sync
-        sleep 5
-
-        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
-        rm -rf $JOB_DIR
-        """
+        MAIN_STEP_SHELL
 
 rule sim_cleanup:
     input:
@@ -313,7 +237,7 @@ rule sim_cleanup:
     container:
         BASE_CONTAINER
     shell:
-        cleanup_command
+        CLEANUP_SHELL
 
 rule parse_hlt_metadata:
     input:
@@ -343,53 +267,10 @@ rule hlt:
     params:
         events=eventsPerJob,
         step="hlt",
-        prev_step="digi2raw"
+        prev_step="digi2raw",
+        pileup="dummy"
     shell:
-        """
-        set -e
-        export WORKDIR=$(pwd)
-
-        JOB_DIR=$(mktemp -d)
-        cd $JOB_DIR
-
-        echo "Sourcing CMS environment"
-        eval "$(cat $WORKDIR/{input.environment})"
-
-        scram b
-        eval `scramv1 runtime -sh`
-
-        echo "Running {params.step} workflow"
-
-        export JOB_INDEX={wildcards.jobIndex}
-        export EVENTS={params.events} 
-        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
-        
-        echo "Running cmsDriver for SIM"
-        eval "$(cat $WORKDIR/{input.cmd_file})"
-
-        echo "Running cmsRun"
-        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
-
-        echo "Listing directories, to better understand what it looks like:"
-        ls -lh 
-
-        if ! ls *.root 1> /dev/null 2>&1; then
-            echo "[ERROR] cmsRun exited, but no .root file was created"
-            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
-            cat cmsRun.log
-            exit 1
-        fi
-
-        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
-
-        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
-
-        sync
-        sleep 5
-
-        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
-        rm -rf $JOB_DIR
-        """
+        MAIN_STEP_SHELL
 
 rule digi2raw_cleanup:
     input:
@@ -401,7 +282,7 @@ rule digi2raw_cleanup:
     container:
         BASE_CONTAINER
     shell:
-        cleanup_command
+        CLEANUP_SHELL
 
 rule parse_reco_metadata:
     input:
@@ -432,55 +313,12 @@ rule reco:
     params:
         events=eventsPerJob,
         step="reco",
-        prev_step="hlt"
+        prev_step="hlt",
+        pileup="dummy"
     resources:
         kubernetes_memory_limit='8Gi'
     shell:
-        """
-        set -e
-        export WORKDIR=$(pwd)
-
-        JOB_DIR=$(mktemp -d)
-        cd $JOB_DIR
-
-        echo "Sourcing CMS environment"
-        eval "$(cat $WORKDIR/{input.environment})"
-
-        scram b
-        eval `scramv1 runtime -sh`
-
-        echo "Running {params.step} workflow"
-
-        export JOB_INDEX={wildcards.jobIndex}
-        export EVENTS={params.events} 
-        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
-        
-        echo "Running cmsDriver for SIM"
-        eval "$(cat $WORKDIR/{input.cmd_file})"
-
-        echo "Running cmsRun"
-        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
-
-        echo "Listing directories, to better understand what it looks like:"
-        ls -lh 
-
-        if ! ls *.root 1> /dev/null 2>&1; then
-            echo "[ERROR] cmsRun exited, but no .root file was created"
-            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
-            cat cmsRun.log
-            exit 1
-        fi
-
-        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
-
-        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
-
-        sync
-        sleep 5
-
-        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
-        rm -rf $JOB_DIR
-        """
+        MAIN_STEP_SHELL
 
 rule hlt_cleanup:
     input:
@@ -492,7 +330,7 @@ rule hlt_cleanup:
     container:
         BASE_CONTAINER
     shell:
-        cleanup_command
+        CLEANUP_SHELL
 
 rule parse_pat_metadata:
     input:
@@ -521,55 +359,12 @@ rule pat:
     params:
         events=eventsPerJob,
         step="pat",
-        prev_step="reco"
+        prev_step="reco",
+        pileup="dummy"
     container:
         BASE_CONTAINER 
     shell:
-        """
-        set -e
-        export WORKDIR=$(pwd)
-
-        JOB_DIR=$(mktemp -d)
-        cd $JOB_DIR
-
-        echo "Sourcing CMS environment"
-        eval "$(cat $WORKDIR/{input.environment})"
-
-        scram b
-        eval `scramv1 runtime -sh`
-
-        echo "Running {params.step} workflow"
-
-        export JOB_INDEX={wildcards.jobIndex}
-        export EVENTS={params.events} 
-        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
-        
-        echo "Running cmsDriver for SIM"
-        eval "$(cat $WORKDIR/{input.cmd_file})"
-
-        echo "Running cmsRun"
-        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
-
-        echo "Listing directories, to better understand what it looks like:"
-        ls -lh 
-
-        if ! ls *.root 1> /dev/null 2>&1; then
-            echo "[ERROR] cmsRun exited, but no .root file was created"
-            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
-            cat cmsRun.log
-            exit 1
-        fi
-
-        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
-
-        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
-
-        sync
-        sleep 5
-
-        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
-        rm -rf $JOB_DIR
-        """
+        MAIN_STEP_SHELL
 
 rule reco_cleanup:
     input:
@@ -581,7 +376,7 @@ rule reco_cleanup:
     container:
         BASE_CONTAINER
     shell:
-        cleanup_command
+        CLEANUP_SHELL
 
 rule parse_nano_metadata:
     input:
@@ -610,55 +405,12 @@ rule nano:
     params:
         events=eventsPerJob,
         step="nano",
-        prev_step="pat"
+        prev_step="pat",
+        pileup="dummy"
     container:
         BASE_CONTAINER
     shell:
-        """
-        set -e
-        export WORKDIR=$(pwd)
-
-        JOB_DIR=$(mktemp -d)
-        cd $JOB_DIR
-
-        echo "Sourcing CMS environment"
-        eval "$(cat $WORKDIR/{input.environment})"
-
-        scram b
-        eval `scramv1 runtime -sh`
-
-        echo "Running {params.step} workflow"
-
-        export JOB_INDEX={wildcards.jobIndex}
-        export EVENTS={params.events} 
-        export INPUT_FILE={EOS_PATH}/results/{params.prev_step}_{wildcards.jobIndex}.root
-        
-        echo "Running cmsDriver for SIM"
-        eval "$(cat $WORKDIR/{input.cmd_file})"
-
-        echo "Running cmsRun"
-        cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
-
-        echo "Listing directories, to better understand what it looks like:"
-        ls -lh 
-
-        if ! ls *.root 1> /dev/null 2>&1; then
-            echo "[ERROR] cmsRun exited, but no .root file was created"
-            echo "[ERROR] Dumping the cmsRun log to see the exact CMS physics error:"
-            cat cmsRun.log
-            exit 1
-        fi
-
-        cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
-
-        cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
-
-        sync
-        sleep 5
-
-        echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
-        rm -rf $JOB_DIR
-        """
+        MAIN_STEP_SHELL
 
 rule pat_cleanup:
     input:
@@ -670,7 +422,7 @@ rule pat_cleanup:
     container:
         BASE_CONTAINER
     shell:
-        cleanup_command
+        CLEANUP_SHELL
 
 rule merge_nano:
     input:
