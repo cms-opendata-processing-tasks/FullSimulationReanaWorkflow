@@ -1,4 +1,3 @@
-RECORD_ID=72677 #35755  
 BASE_CONTAINER="docker://gitlab-registry.cern.ch/cms-cloud/cmssw-docker/cc7-cms"
 OPENDATA_CONTAINER="docker://cernopendata/cernopendata-client:latest"
 
@@ -7,15 +6,22 @@ totalEvents=config.get("events", 0)
 eventsPerJob= 1
 EOS_PATH=config.get("eos_outdir", "not found")
 
-totalEvents=config.get("events", 0)
-eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
+
+cleanup_command = """
+    set -e    
+
+    rm {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
     
+    mkdir -p results/cleanup
+    echo "Cleanup done" > results/cleanup/{params.step}_cleanup_{wildcards.jobIndex}_confirm.txt
+"""
+
 
 rule all:
     input:
-        "results/nano_merged_confirm.txt"
+        "results/nano_merged.root"
 
 rule fetch_metadata:
     output:
@@ -192,6 +198,18 @@ rule sim:
         rm -rf $JOB_DIR
         """
 
+rule gen_cleanup:
+    input:
+        "results/sim_{jobIndex}_confirm.txt"
+    output:
+        "results/cleanup/gen_cleanup_{jobIndex}_confirm.txt"
+    params:
+        step="gen"
+    container:
+        BASE_CONTAINER
+    shell:
+        cleanup_command
+
 rule predigi2raw:
     input:
         record_id='pileup_record_id.txt'
@@ -223,6 +241,7 @@ rule parse_digi2raw_metadata:
 
 rule digi2raw:
     input:
+        "results/cleanup/gen_cleanup_{jobIndex}_confirm.txt",
         "results/sim_{jobIndex}_confirm.txt",
         pileup="results/pileup_file.txt",
         cmd_file="cmsDriver_digi2raw.txt",
@@ -284,6 +303,18 @@ rule digi2raw:
         rm -rf $JOB_DIR
         """
 
+rule sim_cleanup:
+    input:
+        "results/digi2raw_{jobIndex}_confirm.txt"
+    output:
+        "results/cleanup/sim_cleanup_{jobIndex}_confirm.txt"
+    params:
+        step="sim"
+    container:
+        BASE_CONTAINER
+    shell:
+        cleanup_command
+
 rule parse_hlt_metadata:
     input:
         metadata="record_metadata.json"
@@ -301,6 +332,7 @@ rule parse_hlt_metadata:
 
 rule hlt:
     input:
+        "results/cleanup/sim_cleanup_{jobIndex}_confirm.txt",
         "results/digi2raw_{jobIndex}_confirm.txt",
         cmd_file="cmsDriver_hlt.txt",
         environment="hlt_env.txt"
@@ -359,6 +391,18 @@ rule hlt:
         rm -rf $JOB_DIR
         """
 
+rule digi2raw_cleanup:
+    input:
+        "results/hlt_{jobIndex}_confirm.txt"
+    output:
+        "results/cleanup/digi2raw_cleanup_{jobIndex}_confirm.txt"
+    params:
+        step="digi2raw"
+    container:
+        BASE_CONTAINER
+    shell:
+        cleanup_command
+
 rule parse_reco_metadata:
     input:
         metadata="record_metadata.json"
@@ -377,6 +421,7 @@ rule parse_reco_metadata:
 
 rule reco:
     input:
+        "results/cleanup/digi2raw_cleanup_{jobIndex}_confirm.txt",
         "results/hlt_{jobIndex}_confirm.txt",
         cmd_file="cmsDriver_reco.txt",
         environment="reco_env.txt"
@@ -437,6 +482,18 @@ rule reco:
         rm -rf $JOB_DIR
         """
 
+rule hlt_cleanup:
+    input:
+        "results/reco_{jobIndex}_confirm.txt"
+    output:
+        "results/cleanup/hlt_cleanup_{jobIndex}_confirm.txt"
+    params:
+        step="hlt"
+    container:
+        BASE_CONTAINER
+    shell:
+        cleanup_command
+
 rule parse_pat_metadata:
     input:
         metadata="record_metadata.json"
@@ -455,6 +512,7 @@ rule parse_pat_metadata:
 
 rule pat:
     input:
+        "results/cleanup/hlt_cleanup_{jobIndex}_confirm.txt",
         "results/reco_{jobIndex}_confirm.txt",
         environment="pat_env.txt",
         cmd_file="cmsDriver_pat.txt"
@@ -513,6 +571,18 @@ rule pat:
         rm -rf $JOB_DIR
         """
 
+rule reco_cleanup:
+    input:
+        "results/pat_{jobIndex}_confirm.txt"
+    output:
+        "results/cleanup/reco_cleanup_{jobIndex}_confirm.txt"
+    params:
+        step="reco"
+    container:
+        BASE_CONTAINER
+    shell:
+        cleanup_command
+
 rule parse_nano_metadata:
     input:
         metadata="record_metadata.json"
@@ -531,6 +601,7 @@ rule parse_nano_metadata:
 
 rule nano:
     input:
+        "results/cleanup/reco_cleanup_{jobIndex}_confirm.txt",
         "results/pat_{jobIndex}_confirm.txt",
         environment="nano_env.txt",
         cmd_file="cmsDriver_nano.txt"
@@ -589,12 +660,24 @@ rule nano:
         rm -rf $JOB_DIR
         """
 
+rule pat_cleanup:
+    input:
+        "results/nano_{jobIndex}_confirm.txt"
+    output:
+        "results/cleanup/pat_cleanup_{jobIndex}_confirm.txt"
+    params:
+        step="pat"
+    container:
+        BASE_CONTAINER
+    shell:
+        cleanup_command
+
 rule merge_nano:
     input:
+        expand("results/cleanup/pat_cleanup_{jobIndex}_confirm.txt", jobIndex=jobIndex),
         expand("results/nano_{jobIndex}_confirm.txt", jobIndex=jobIndex)
     output:
-        merged_local=temporary("results/nano_merged.root"),
-        confirm_merge=temporary("results/nano_merged_confirm.txt")
+        merged_local=temporary("results/nano_merged.root")
     params:
         eos_inputs=" ".join([f"{EOS_PATH}/results/nano_{i}.root" for i in jobIndex]),
         eos_output=f"{EOS_PATH}/results/nano_merged.root"
@@ -618,6 +701,4 @@ rule merge_nano:
         hadd -f {output.merged_local} {params.eos_inputs}
 
         cp {output.merged_local} {params.eos_output}
-        
-        echo "Merge complete" > $WORKDIR/{output.confirm_merge}
         """
