@@ -11,7 +11,7 @@ inputs:
     # Provide the number events you want assigned to each job
     # eventsPerJob: 1
     # Provide the eos_dir you want the results to be stored in
-    eos_outdir: "/eos/user/k/kabuquti/test_cleanup"
+    eos_outdir: "/eos/user/j/johndoe/my_project"
 workflow:
   file: workflow/Snakefile
   type: snakemake
