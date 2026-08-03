@@ -2,12 +2,16 @@ RECORD_ID=72677 #35755
 BASE_CONTAINER="docker://gitlab-registry.cern.ch/cms-cloud/cmssw-docker/cc7-cms"
 OPENDATA_CONTAINER="docker://cernopendata/cernopendata-client:latest"
 
+RECORD_ID=config.get("record_id", 0)
+totalEvents=config.get("events", 0)
+eventsPerJob= 1
 EOS_PATH=config.get("eos_outdir", "not found")
 
 totalEvents=config.get("events", 0)
 eventsPerJob=1
 
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
+    
 
 rule all:
     input:
