@@ -452,7 +452,7 @@ rule merge_nano:
         cd ../../
         
         echo "Merging all NanoAOD files..."
-        hadd -f {output.merged_local} {params.eos_inputs}
+        python $WORKDIR/workflow/scripts/haddnano.py {output.merged_local} {params.eos_inputs}
 
         cp {output.merged_local} {params.eos_output}
         """

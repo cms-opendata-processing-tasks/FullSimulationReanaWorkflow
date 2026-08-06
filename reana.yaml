@@ -3,6 +3,7 @@ inputs:
   files:
   - workflow/Snakefile
   - workflow/scripts/parse_metadata.py
+  - workflow/scripts/haddnano.py
   parameters:
     # Provide the record ID of the dataset you want to simulate
     record_id: 72677 #35755

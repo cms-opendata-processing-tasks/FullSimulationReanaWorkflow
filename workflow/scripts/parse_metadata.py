@@ -77,6 +77,8 @@ if step == "sim":
         f.write(pileup_record_id)
 elif step == "digi2raw":
     cmsDriver_snakemake = re.sub(r"--pileup_input\s+\S+", "--pileup_input ${PILEUP_URL}", cmsDriver_snakemake)
+elif step == "nano":
+    cmsDriver_snakemake = re.sub(r"--eventcontent [^\s]+", "--eventcontent NANOAODSIM", cmsDriver_snakemake)
 
 with open(cmsDriver_command_path, "w") as f:
     f.write(cmsDriver_snakemake)
