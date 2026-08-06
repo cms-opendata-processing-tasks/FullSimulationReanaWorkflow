@@ -10,7 +10,7 @@ EOS_PATH=config.get("eos_outdir", "not found")
 jobIndex = list(range(1, int(totalEvents/eventsPerJob)+1))
 
 CLEANUP_SHELL = """
-    set -e    
+    set -e
 
     rm {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
     
@@ -219,6 +219,8 @@ rule digi2raw:
         temporary("results/digi2raw_{jobIndex}_confirm.txt")
     container:
         BASE_CONTAINER
+    resources:
+        digi2raw_connections=1
     params:
         events=eventsPerJob,
         step="digi2raw",

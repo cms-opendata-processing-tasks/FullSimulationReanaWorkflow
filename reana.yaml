@@ -16,6 +16,8 @@ workflow:
   file: workflow/Snakefile
   type: snakemake
 
+  engine_args: >-
+    --resources digi2raw_connections=40
   resources:
     kerberos: True
     cvmfs:
