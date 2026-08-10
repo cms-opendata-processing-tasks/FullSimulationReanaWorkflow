@@ -64,6 +64,19 @@ MAIN_STEP_SHELL = """
 
     echo "Running {params.step} cmsRun"
 
+    mkdir -p $WORKDIR/cfg_files
+    cat <<EOF >> {params.step}_cfg_{wildcards.jobIndex}.py
+
+workflow_seed = 12345 + int({wildcards.jobIndex})
+
+for param in process.RandomNumberGeneratorService.parameterNames_():
+    module = getattr(process.RandomNumberGeneratorService, param)
+    if hasattr(module, 'initialSeed'):
+        module.initialSeed = cms.untracked.uint32(workflow_seed)
+EOF
+        
+    cp {params.step}_cfg_{wildcards.jobIndex}.py $WORKDIR/cfg_files/{params.step}_cfg_{wildcards.jobIndex}.py
+
     cmsRun {params.step}_cfg_{wildcards.jobIndex}.py > cmsRun.log 2>&1 || true
 
     echo "Listing directories, to better understand what it looks like:"
