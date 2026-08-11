@@ -37,17 +37,6 @@ variable_configs = [
     ("Muon_eta", "Muon_eta", 50, (-3.15, 3.15))
 ]
 
-
-'''
-The Stat_comparison.py script still needs a few updates:
-1) Variable_configs needs to be changed/completely altered depending on the workflow we're simulating (different particles being generated)
-2) The downloaded ROOT file from CERN Open Data should also differ depending on the workflow itself, and it's unclear whether multiple runs of the same workflow 
-entails comparisons with different ROOT files 
-3) Perhaps depending on the size of the NanoAOD file, it could either be downloaded
-locally automatically and then loaded using load_variable() or if it exceeds a certain file size,
-it could be streamed in some way 
-'''
-
 results = []
 for var, tree_branch, bins, range_ in variable_configs:
     sim = load_variable("Fixed_nano_merge.root", "Events", tree_branch) #Our generated NanoAOD file
