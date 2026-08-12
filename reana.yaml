@@ -4,6 +4,9 @@ inputs:
   - workflow/Snakefile
   - workflow/scripts/parse_metadata.py
   - workflow/scripts/haddnano.py
+  - workflow/scripts/metrics/storage.py
+  - workflow/shell_commands/cleanup_shell.txt
+  - workflow/shell_commands/main_steps_shell.txt
   parameters:
     # Provide the record ID of the dataset you want to simulate
     record_id: 72677 #35755
@@ -12,7 +15,7 @@ inputs:
     # Provide the number events you want assigned to each job
     eventsPerJob: 1
     # Provide the eos_dir you want the results to be stored in
-    eos_outdir: "/eos/user/j/johndoe/my_project"
+    eos_outdir: "/eos/user/k/kabuquti/test"
 workflow:
   file: workflow/Snakefile
   type: snakemake

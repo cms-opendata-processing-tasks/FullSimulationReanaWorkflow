@@ -1,4 +1,7 @@
     set -e
+    mkdir -p benchmarks 
+
+    cat << 'PAYLOAD_EOF' >> run_payload_{wildcards.jobIndex}.sh
     export WORKDIR=$(pwd)
 
     JOB_DIR=$(mktemp -d)
@@ -80,3 +83,8 @@ EOF
 
     echo "{params.step} step done" > $WORKDIR/results/{params.step}_{wildcards.jobIndex}_confirm.txt
     rm -rf $JOB_DIR
+PAYLOAD_EOF
+
+/usr/bin/time -f "%e\t%M" -o benchmarks/{params.step}_{wildcards.jobIndex}.tsv bash run_payload_{wildcards.jobIndex}.sh
+
+rm run_payload_{wildcards.jobIndex}.sh
