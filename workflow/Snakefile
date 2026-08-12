@@ -91,6 +91,9 @@ EOF
 
     cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
     
+    mkdir -p $WORKDIR/sizes
+    stat -c%s {params.step}_output.root > $WORKDIR/sizes/{params.step}_{wildcards.jobIndex}.size
+
     mkdir -p {EOS_PATH}/results && cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
 
     sync
@@ -102,7 +105,7 @@ EOF
 
 rule all:
     input:
-        "results/nano_merged.root"
+        "results/reports/sizes.csv"
 
 rule fetch_metadata:
     output:
@@ -444,7 +447,7 @@ rule merge_nano:
         expand("results/cleanup/pat_cleanup_{jobIndex}_confirm.txt", jobIndex=jobIndex),
         expand("results/nano_{jobIndex}_confirm.txt", jobIndex=jobIndex)
     output:
-        merged_local=temporary("results/nano_merged.root")
+        merged_local="results/nano_merged.root"
     params:
         eos_inputs=" ".join([f"{EOS_PATH}/results/nano_{i}.root" for i in jobIndex]),
         eos_output=f"{EOS_PATH}/results/nano_merged.root"
@@ -469,3 +472,28 @@ rule merge_nano:
 
         cp {output.merged_local} {params.eos_output}
         """
+
+rule measure_storage:
+    input:
+        "results/nano_merged.root"
+    output:
+        "results/reports/sizes.csv"
+    params:
+        sizes="sizes/"
+    container:
+        OPENDATA_CONTAINER
+    shell:
+        """
+        set -e
+        ls -lh
+
+        pip install pandas
+        pip install tabulate
+        mkdir -p results/reports/
+        python3 workflow/scripts/metrics/storage.py {params.sizes}
+
+        mkdir -p {EOS_PATH}/results/reports
+        cp results/reports/sizes* {EOS_PATH}/results/reports/
+        """
+
+# ask why having it as {input.sizes} instead of {params.sizes} doesn't return a warning
