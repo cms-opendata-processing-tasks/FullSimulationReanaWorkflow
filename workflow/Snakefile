@@ -19,23 +19,23 @@ with open("workflow/shell_commands/main_steps_shell.txt", "r") as f:
     MAIN_STEP_SHELL = f.read()
 
 onstart:
-    os.makedirs("workflow/results/reports", exist_ok=True)
+    os.makedirs("workflow/results/metrics", exist_ok=True)
     
-    with open("workflow/results/reports/workflow_start_time.txt", "w") as f:
+    with open("workflow/results/metrics/workflow_start_time.txt", "w") as f:
         f.write(str(time.time()))
 
 onsuccess:
-    with open("workflow/results/reports/workflow_start_time.txt", "r") as f:
+    with open("workflow/results/metrics/workflow_start_time.txt", "r") as f:
         start_time = float(f.read())
     
     total_time = time.time() - start_time
 
-    with open("workflow/results/reports/workflow_total_time.txt", "w") as f:
+    with open("workflow/results/metrics/workflow_total_time.txt", "w") as f:
         f.write(f"Total Time (seconds): {total_time}")
 
 rule all:
     input:
-        "results/reports/sizes.csv"
+        "metrics.csv"
 
 rule fetch_metadata:
     output:
@@ -407,9 +407,9 @@ rule measure_storage:
     input:
         "results/nano_merged.root"
     output:
-        "results/reports/sizes.csv"
+        "metrics.csv"
     params:
-        sizes="sizes/"
+        metrics="metrics/"
     container:
         OPENDATA_CONTAINER
     shell:
@@ -419,11 +419,10 @@ rule measure_storage:
 
         pip install pandas
         pip install tabulate
-        mkdir -p results/reports/
-        python3 workflow/scripts/metrics/storage.py {params.sizes}
+        mkdir -p results/metrics/
+        python3 workflow/scripts/metrics/metrics.py {params.metrics}
 
-        mkdir -p {EOS_PATH}/results/reports
-        cp results/reports/sizes* {EOS_PATH}/results/reports/
+        mkdir -p {EOS_PATH}/results/metrics
+        cp metrics* {EOS_PATH}/results/metrics/
         """
-
 # ask why having it as {input.sizes} instead of {params.sizes} doesn't return a warning

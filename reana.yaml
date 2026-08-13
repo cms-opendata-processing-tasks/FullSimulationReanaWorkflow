@@ -4,7 +4,7 @@ inputs:
   - workflow/Snakefile
   - workflow/scripts/parse_metadata.py
   - workflow/scripts/haddnano.py
-  - workflow/scripts/metrics/storage.py
+  - workflow/scripts/metrics/metrics.py
   - workflow/shell_commands/cleanup_shell.txt
   - workflow/shell_commands/main_steps_shell.txt
   parameters:

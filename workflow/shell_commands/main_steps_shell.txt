@@ -1,5 +1,5 @@
     set -e
-    mkdir -p benchmarks 
+    mkdir -p metrics 
 
     cat << 'PAYLOAD_EOF' >> run_payload_{wildcards.jobIndex}.sh
     export WORKDIR=$(pwd)
@@ -73,8 +73,8 @@ EOF
 
     cp cmsRun.log $WORKDIR/{params.step}_{wildcards.jobIndex}.log
     
-    mkdir -p $WORKDIR/sizes
-    stat -c%s {params.step}_output.root > $WORKDIR/sizes/{params.step}_{wildcards.jobIndex}.size
+    mkdir -p $WORKDIR/metrics
+    stat -c%s {params.step}_output.root > $WORKDIR/metrics/{params.step}_{wildcards.jobIndex}.size
 
     mkdir -p {EOS_PATH}/results && cp {params.step}_output.root {EOS_PATH}/results/{params.step}_{wildcards.jobIndex}.root
 
@@ -85,6 +85,6 @@ EOF
     rm -rf $JOB_DIR
 PAYLOAD_EOF
 
-/usr/bin/time -f "%e\t%M" -o benchmarks/{params.step}_{wildcards.jobIndex}.tsv bash run_payload_{wildcards.jobIndex}.sh
+/usr/bin/time -f "%e\t%M" -o metrics/{params.step}_{wildcards.jobIndex}.tsv bash run_payload_{wildcards.jobIndex}.sh
 
 rm run_payload_{wildcards.jobIndex}.sh
