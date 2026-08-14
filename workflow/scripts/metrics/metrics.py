@@ -49,16 +49,16 @@ storage_details_df = pd.DataFrame.from_dict(step_metrics["storage"], orient="ind
 
 summary = pd.concat([storage_df, time_df], axis=1)
 
-summary.to_csv("metrics.csv")
+summary.to_csv("results/metrics/metrics.csv")
 markdown_summary = summary.to_markdown()
 
-with open("metrics.md", "w") as f:
+with open("results/metrics/metrics.md", "w") as f:
     f.write(markdown_summary)
 
-time_details_df.to_csv("time_step_details_seconds.csv")
-with open("time_details_seconds.md", "w") as f:
+time_details_df.to_csv("results/metrics/time_step_details_seconds.csv")
+with open("results/metrics/time_details_seconds.md", "w") as f:
     f.write(time_details_df.to_markdown())
 
-storage_details_df.to_csv("storage_step_details_bytes.csv")
-with open("storage_step_details_bytes.md", "w") as f:
+storage_details_df.to_csv("results/metrics/storage_step_details_bytes.csv")
+with open("results/metrics/storage_step_details_bytes.md", "w") as f:
     f.write(storage_details_df.to_markdown())

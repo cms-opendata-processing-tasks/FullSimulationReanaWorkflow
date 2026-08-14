@@ -35,7 +35,7 @@ onsuccess:
 
 rule all:
     input:
-        "metrics.csv"
+        "results/metrics/metrics.csv"
 
 rule fetch_metadata:
     output:
@@ -407,9 +407,9 @@ rule measure_metrics:
     input:
         "results/nano_merged.root"
     output:
-        "metrics.csv"
+        "results/metrics/metrics.csv"
     params:
-        metrics="metrics/"
+        metrics="results/metrics/"
     container:
         OPENDATA_CONTAINER
     shell:
@@ -423,6 +423,6 @@ rule measure_metrics:
         python3 workflow/scripts/metrics/metrics.py {params.metrics}
 
         mkdir -p {EOS_PATH}/results/metrics
-        cp metrics* {EOS_PATH}/results/metrics/
+        cp -r results/metrics/*.csv results/metrics/*.md {EOS_PATH}/results/metrics/
         """
 # ask why having it as {input.sizes} instead of {params.sizes} doesn't return a warning
