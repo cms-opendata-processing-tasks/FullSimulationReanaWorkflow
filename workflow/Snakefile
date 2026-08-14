@@ -403,7 +403,7 @@ rule merge_nano:
         cp {output.merged_local} {params.eos_output}
         """
 
-rule measure_storage:
+rule measure_metrics:
     input:
         "results/nano_merged.root"
     output:
