@@ -38,6 +38,9 @@
     export JOB_INDEX={wildcards.jobIndex}
 
     echo "Running cmsDriver"
+
+    sync
+    sleep 5
     
     eval "$(cat $WORKDIR/{input.cmd_file})"
     
