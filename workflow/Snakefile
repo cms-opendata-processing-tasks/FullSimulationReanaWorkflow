@@ -2,7 +2,7 @@ import os
 import time 
 
 BASE_CONTAINER="docker://gitlab-registry.cern.ch/cms-cloud/cmssw-docker/cc7-cms"
-OPENDATA_CONTAINER="docker://cernopendata/cernopendata-client:latest"
+OPENDATACLIENT_CONTAINER="docker://cernopendata/cernopendata-client:latest"
 
 RECORD_ID=config.get("record_id", 0)
 totalEvents=config.get("events", 0)
@@ -41,7 +41,7 @@ rule fetch_metadata:
     output:
         metadata=temporary("record_metadata.json")
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
         cernopendata-client get-metadata --recid {RECORD_ID} > {output.metadata}
@@ -56,7 +56,7 @@ rule parse_gen_metadata:
     params:
         step="gen"
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
         set -e
@@ -89,7 +89,7 @@ rule parse_sim_metadata:
     params:
         step="sim"
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
         set -e
@@ -131,7 +131,7 @@ rule predigi2raw:
     output:
         temporary("results/pileup_file.txt")
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
             pileup_recid="$(cat {input.record_id})"
@@ -148,7 +148,7 @@ rule parse_digi2raw_metadata:
     params:
         step="digi2raw"
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
         python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
@@ -196,7 +196,7 @@ rule parse_hlt_metadata:
     params:
         step="hlt"
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
         python3 workflow/scripts/parse_metadata.py {input.metadata} {output.cmd_file} {params.step}
@@ -241,7 +241,7 @@ rule parse_reco_metadata:
     params:
         step="reco"
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
         set -e
@@ -289,7 +289,7 @@ rule parse_pat_metadata:
     params:
         step="pat"
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
         set -e
@@ -335,7 +335,7 @@ rule parse_nano_metadata:
     params:
         step="nano"
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
         set -e
@@ -411,7 +411,7 @@ rule measure_metrics:
     params:
         metrics="results/metrics/"
     container:
-        OPENDATA_CONTAINER
+        OPENDATACLIENT_CONTAINER
     shell:
         """
         set -e
