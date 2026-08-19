@@ -11,3 +11,6 @@ Configuration/
 test.py
 record_metadata.json
 plot_env
+reana-env-qa.sh
+plots
+Testing_fragment.py
