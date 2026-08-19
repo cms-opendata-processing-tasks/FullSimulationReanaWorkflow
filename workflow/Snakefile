@@ -403,9 +403,21 @@ rule merge_nano:
         cp {output.merged_local} {params.eos_output}
         """
 
-rule measure_metrics:
+rule nano_cleanup:
     input:
         "results/nano_merged.root"
+    output:
+        "results/cleanup/nano_cleanup_{jobIndex}_confirm.txt"
+    params:
+        step="nano"
+    container:
+        BASE_CONTAINER
+    shell:
+        CLEANUP_SHELL
+
+rule measure_metrics:
+    input:
+        expand("results/cleanup/nano_cleanup_{jobIndex}_confirm.txt", jobIndex=jobIndex)
     output:
         "results/metrics/metrics.csv"
     params:
