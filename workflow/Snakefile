@@ -3,7 +3,7 @@ OPENDATA_CONTAINER="docker://cernopendata/cernopendata-client:latest"
 
 RECORD_ID=config.get("record_id", 0)
 totalEvents=config.get("events", 0)
-eventsPerJob=40
+eventsPerJob=2
 EOS_PATH=config.get("eos_outdir", "not found")
 
 
@@ -102,7 +102,7 @@ EOF
 
 rule all:
     input:
-        "results/nano_merged.root"
+        "results/comparison_report.csv"
 
 rule fetch_metadata:
     output:
@@ -468,4 +468,35 @@ rule merge_nano:
         python $WORKDIR/workflow/scripts/haddnano.py {output.merged_local} {params.eos_inputs}
 
         cp {output.merged_local} {params.eos_output}
+        """
+
+rule histogram_results:
+    input:
+        merged_nano="results/nano_merged.root"
+    output:
+        report="results/comparison_report.csv" 
+    params:
+        eos_output=f"{EOS_PATH}/results/comparison_report.csv"
+    container:
+        "python:3.11-slim" 
+    shell:
+        """
+        set -e 
+        export WORKDIR=$(pwd)
+
+        echo "Setting up local Python environment"
+        mkdir -p $WORKDIR/my_python_libs
+
+        echo "Installing required packages"
+        pip install --no-cache-dir uproot awkward numpy pandas boost_histogram scipy --break-system-packages --target $WORKDIR/my_python_libs
+
+        export PYTHONPATH=$WORKDIR/my_python_libs:$PYTHONPATH
+
+        echo "Downloading reference data file"
+        python3 -c "import urllib.request; urllib.request.urlretrieve('https://opendata.cern.ch/eos/opendata/cms/mc/RunIISummer20UL16NanoAODv9/WWTo2L2Nu_TuneCP5_DoubleScattering_13TeV-pythia8/NANOAODSIM/106X_mcRun2_asymptotic_v17-v2/50000/C04CAA8D-3FA5-964C-8D54-1B4601CFD366.root', 'reference_data.root')"
+
+        echo "Running statistical comparison"
+        python3 workflow/scripts/Stat_comparison.py {input.merged_nano} reference_data.root {output.report}
+
+        cp {output.report} {params.eos_output}
         """
